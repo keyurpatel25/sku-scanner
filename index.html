@@ -68,7 +68,7 @@
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
 
-    <script>
+<script>
     window.addEventListener("DOMContentLoaded", () => {
 
       const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
@@ -90,7 +90,6 @@
       let initialized = false; 
 
       function initScanner() {
-        // Ensure initialization only happens once and the library is loaded
         if (!initialized && window.Html5Qrcode) {
           html5QrcodeScanner = new Html5Qrcode("reader");
           initialized = true; 
@@ -99,10 +98,9 @@
 
       function onScanSuccess(decodedText) {
         stopScanner();
-        // Clean and standardize the scanned SKU
         const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
         SKU_INPUT.value = cleanedSku;
-        fetchImage();
+        window.fetchImage(); // Call the global version
         STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
       }
 
@@ -117,14 +115,12 @@
         STATUS_MESSAGE.textContent = 'Checking camera availability... (Requires HTTPS)';
 
         try {
-          // 1. Check for cameras and get the list
           const videoDevices = await Html5Qrcode.getCameras();
           if (!videoDevices.length) {
             STATUS_MESSAGE.textContent = '❌ No camera found on this device.';
             return;
           }
 
-          // 2. Select camera (prioritize back/environment camera)
           let cameraId = videoDevices[0].id;
           const backCam = videoDevices.find(d =>
             (d.label || '').toLowerCase().includes('back') ||
@@ -134,7 +130,7 @@
 
           const config = { fps: 10, qrbox: { width: 250, height: 150 } };
 
-          // 3. Update UI before starting the camera stream
+          // Update UI before starting the camera stream
           READER_DIV.style.display = 'block';
           SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
           SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
@@ -143,7 +139,7 @@
           SCANNER_LINE.classList.remove('hidden');
           isScanning = true;
 
-          // 4. Start the camera and scanning process
+          // Start the camera and scanning process
           await html5QrcodeScanner.start(
             cameraId, 
             config, 
@@ -152,16 +148,14 @@
           );
           STATUS_MESSAGE.textContent = 'Scanning... Place Barcode in the box.';
         } catch (err) {
-          // This catches major failures (like camera denial/unavailable)
           STATUS_MESSAGE.textContent = '❌ Camera access denied or unavailable. Check browser permissions.';
           console.error('Camera Start Error:', err);
-          stopScanner(false); // Reset UI without attempting to stop the camera stream
+          stopScanner(false);
         }
       }
 
       function stopScanner(tryStop = true) {
         if (isScanning) {
-          // Stop the HTML5-Qrcode stream cleanly
           if (tryStop && html5QrcodeScanner) {
             html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
           }
@@ -180,8 +174,9 @@
         if (isScanning) stopScanner();
         else startScanner();
       }
-
-      window.fetchImage = function() { // Made globally accessible for the input's onkeypress
+      
+      // FIX: Made globally accessible for the input's onkeypress
+      window.fetchImage = function() { 
         if (isScanning) stopScanner();
         const sku = SKU_INPUT.value.trim().toUpperCase();
         STATUS_MESSAGE.textContent = '';
@@ -202,7 +197,8 @@
         STATUS_MESSAGE.textContent = `Loading image for SKU: ${sku}`;
       }
 
-      window.handleImageError = function(img) { // Made globally accessible via onerror attribute
+      // FIX: Made globally accessible via onerror attribute
+      window.handleImageError = function(img) { 
         img.removeAttribute('src');
         img.classList.add('opacity-0');
         PLACEHOLDER.textContent = 'Image not found. Check SKU.';
@@ -212,7 +208,7 @@
 
       // Event Listeners
       SCAN_BUTTON.addEventListener("click", toggleScanner);
-      document.getElementById("lookupButton").addEventListener("click", fetchImage);
+      document.getElementById("lookupButton").addEventListener("click", window.fetchImage); // Use the global function
     });
   </script>
 </body>
