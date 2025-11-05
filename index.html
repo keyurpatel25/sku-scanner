@@ -1,104 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fast Barcode Scanner (QuaggaJS)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fast Barcode + SKU Image Viewer</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f3f4f6;
-      color: #111;
+      background-color: #f9fafb;
       text-align: center;
       padding: 20px;
     }
     video {
-      width: 100%;
-      max-width: 480px;
+      width: 480px;
+      height: 360px;
       border: 2px solid #333;
       border-radius: 10px;
-      margin-top: 15px;
+      margin-top: 10px;
     }
-    #result {
+    #productImage {
+      width: 300px;
+      height: 300px;
+      object-fit: contain;
+      border: 2px solid #ddd;
+      border-radius: 10px;
       margin-top: 20px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #2563eb;
+      background-color: #f3f3f3;
+    }
+    #skuInput {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 18px;
+      text-transform: uppercase;
+      width: 250px;
     }
     button {
-      background-color: #2563eb;
-      color: white;
-      border: none;
+      margin-top: 10px;
       padding: 10px 20px;
       font-size: 16px;
-      border-radius: 8px;
+      background-color: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
     }
     button:hover {
       background-color: #1d4ed8;
     }
+    #result {
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #16a34a;
+    }
   </style>
 </head>
 <body>
-  <h1>📷 Fast Barcode Scanner</h1>
-  <p>Align the barcode inside the box to scan.</p>
+  <h1>📦 Fast Barcode Scanner + SKU Image Loader</h1>
+  <p>Point your camera at a barcode to scan instantly.</p>
 
-  <div id="scanner-container">
-    <video id="video" autoplay playsinline></video>
+  <video id="videoElement" autoplay></video>
+  <div id="result">Waiting for barcode...</div>
+
+  <input id="skuInput" type="text" placeholder="Enter SKU manually">
+  <button id="lookupBtn">Load Image</button>
+
+  <div>
+    <img id="productImage" src="" alt="Product image will appear here">
   </div>
-
-  <button id="startButton">Start Scanner</button>
-  <div id="result">No barcode detected yet...</div>
 
   <!-- Load local QuaggaJS -->
   <script src="quagga.min.js"></script>
 
   <script>
-    const startButton = document.getElementById("startButton");
-    const resultEl = document.getElementById("result");
+    const video = document.getElementById('videoElement');
+    const result = document.getElementById('result');
+    const skuInput = document.getElementById('skuInput');
+    const lookupBtn = document.getElementById('lookupBtn');
+    const productImage = document.getElementById('productImage');
 
-    startButton.addEventListener("click", () => {
-      startButton.disabled = true;
-      startButton.textContent = "Starting camera...";
+    const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
+    const IMAGE_SUFFIX = "/1.jpg";
 
-      // Initialize Quagga
-      Quagga.init(
-        {
-          inputStream: {
-            type: "LiveStream",
-            target: document.querySelector("#scanner-container"),
-            constraints: {
-              facingMode: "environment", // rear camera
-            },
-          },
-          decoder: {
-            readers: ["code_128_reader", "code_39_reader", "ean_reader"], // support for common 1D codes
-          },
+    // ✅ Request camera access (your old working logic)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+          startQuagga();
+        })
+        .catch(err => {
+          console.error("Camera access error:", err);
+          alert("Unable to access camera. Please allow permissions.");
+        });
+    } else {
+      alert("Your browser does not support camera access.");
+    }
+
+    // ✅ Start QuaggaJS barcode scanner
+    function startQuagga() {
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: video, // attach to same working camera
+          constraints: { facingMode: "environment" }
         },
-        function (err) {
-          if (err) {
-            console.error(err);
-            alert("Camera init error: " + err.message);
-            startButton.disabled = false;
-            startButton.textContent = "Start Scanner";
-            return;
-          }
-          Quagga.start();
-          startButton.textContent = "Scanning...";
-          console.log("Quagga started");
+        decoder: {
+          readers: ["code_128_reader", "code_39_reader", "ean_reader"]
         }
-      );
-
-      // Listen for detected barcodes
-      Quagga.onDetected((data) => {
-        const code = data.codeResult.code;
-        resultEl.textContent = "✅ Detected Barcode: " + code;
-
-        // Stop scanning after first detection
-        Quagga.stop();
-        startButton.disabled = false;
-        startButton.textContent = "Start Again";
+      }, function (err) {
+        if (err) {
+          console.error("Quagga init failed:", err);
+          return;
+        }
+        Quagga.start();
+        console.log("Quagga started successfully!");
       });
+
+      Quagga.onDetected(data => {
+        const code = data.codeResult.code.trim().toUpperCase();
+        result.textContent = "✅ Barcode Detected: " + code;
+        skuInput.value = code;
+        fetchImage(code);
+
+        // Stop after first detection (optional)
+        Quagga.stop();
+      });
+    }
+
+    // ✅ Load product image by SKU (with A–Z fallback)
+    async function fetchImage(sku) {
+      if (!sku) return;
+      result.textContent = "🔍 Loading image for SKU: " + sku;
+
+      const baseSku = sku.slice(0, -1);
+      const lastChar = sku.slice(-1).toUpperCase();
+      const candidates = [lastChar, ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(c => c !== lastChar)];
+
+      for (let char of candidates) {
+        const url = `${IMAGE_BASE_URL}${baseSku}${char}${IMAGE_SUFFIX}`;
+        try {
+          const res = await fetch(url, { method: "HEAD" });
+          if (res.ok) {
+            productImage.src = url;
+            result.textContent = `✅ Image loaded for ${baseSku}${char}`;
+            return;
+          } else {
+            await new Promise(r => setTimeout(r, 300)); // wait between requests
+          }
+        } catch (err) {
+          console.warn("Image not found:", baseSku + char);
+        }
+      }
+      result.textContent = "⚠️ No image found for this SKU.";
+      productImage.src = "";
+    }
+
+    lookupBtn.addEventListener('click', () => {
+      const sku = skuInput.value.trim().toUpperCase();
+      fetchImage(sku);
     });
   </script>
 </body>
