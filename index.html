@@ -1,201 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SKU Scanner for GitHub Pages</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Product SKU Scanner for GitHub Pages</title>
 
-  <!-- Tailwind CSS via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 
-  <style>
-    body { font-family: 'Inter', sans-serif; background: #f7f7f7; }
-    #reader { max-width: 100%; height: 300px; border-radius: .5rem; overflow: hidden; position: relative; background: #000; }
-    .scanner-line { position: absolute; left: 0; width: 100%; height: 2px;
-      background: linear-gradient(to right, transparent, #10b981, transparent);
-      animation: scan-move 2s infinite alternate ease-in-out; z-index: 10; }
-    @keyframes scan-move { 0% { top: 0% } 100% { top: 98% } }
-  </style>
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #f7f7f7; }
+    /* Reduced height for better mobile view */
+    #reader { max-width: 100%; height: 250px; border-radius: .5rem; overflow: hidden; position: relative; background: #000; }
+    .scanner-line { 
+      position: absolute; left: 0; width: 100%; height: 2px;
+      background: linear-gradient(to right, transparent, #10b981, transparent);
+      animation: scan-move 2s infinite alternate ease-in-out; 
+      z-index: 10; 
+    }
+    @keyframes scan-move { 0% { top: 0% } 100% { top: 98% } }
+  </style>
 </head>
 
 <body class="p-4 sm:p-8 min-h-screen flex items-start justify-center">
-  <div id="app-container" class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
+  <div id="app-container" class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
 
-    <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
-    <p class="text-gray-500 mb-6">Scan a barcode or manually enter a SKU to view the product image.</p>
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
+    <p class="text-gray-500 mb-6">Scan a barcode or manually enter a SKU to view the product image.</p>
 
-    <div id="scannerContainer" class="mb-8 transition duration-300">
-      <button id="scanButton" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 active:scale-95 transform mb-4">
-        <span id="scanButtonText">Start Barcode Scan</span>
-      </button>
+    <div id="scannerContainer" class="mb-8 transition duration-300">
+      <button id="scanButton" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 active:scale-95 transform mb-4">
+        <span id="scanButtonText">Start Barcode Scan</span>
+      </button>
 
-      <div id="reader" style="display: none;">
-        <div id="scanner-line" class="scanner-line hidden"></div>
-        <div id="scanner-prompt" class="absolute inset-0 flex items-center justify-center text-white text-sm opacity-50 z-20 pointer-events-none">
-          Place Barcode/QR Code in View
-        </div>
-      </div>
-    </div>
+      <div id="reader" style="display: none;">
+        <div id="scanner-line" class="scanner-line hidden"></div>
+        <div id="scanner-prompt" class="absolute inset-0 flex items-center justify-center text-white text-sm opacity-50 z-20 pointer-events-none">
+          Place Barcode/QR Code in View
+        </div>
+      </div>
+    </div>
 
-    <div class="flex flex-col sm:flex-row gap-4 mb-8">
-      <input type="text" id="skuInput" placeholder="Enter SKU (e.g., XLH50880A)"
-        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 focus:border-blue-500 uppercase tracking-widest text-lg font-medium shadow-sm transition"
-        onkeypress="if(event.key === 'Enter') { fetchImage(); }">
-      <button id="lookupButton"
-        class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 active:scale-95 transform disabled:opacity-50">
-        Lookup Image
-      </button>
-    </div>
+    <div class="flex flex-col sm:flex-row gap-4 mb-8">
+      <input type="text" id="skuInput" placeholder="Enter SKU (e.g., XLH50880A)"
+        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 focus:border-blue-500 uppercase tracking-widest text-lg font-medium shadow-sm transition"
+        onkeypress="if(event.key === 'Enter') { fetchImage(); }">
+      <button id="lookupButton"
+        class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 active:scale-95 transform disabled:opacity-50">
+        Lookup Image
+      </button>
+    </div>
 
-    <div id="imageDisplay" class="mt-8">
-      <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
-      <div id="imageContainer" class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
-        <img id="productImage" src="" alt="Product Image"
-          class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
-          onerror="handleImageError(this)"
-          onload="this.classList.remove('opacity-0')">
-        <div id="placeholder" class="text-gray-400 text-center transition-opacity duration-300" style="display: block;">
-          Enter a SKU or scan a barcode to search for an image.
-        </div>
-      </div>
-    </div>
+    <div id="imageDisplay" class="mt-8">
+      <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
+      <div id="imageContainer" class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
+        <img id="productImage" src="" alt="Product Image"
+          class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
+          onerror="handleImageError(this)"
+          onload="this.classList.remove('opacity-0')">
+        <div id="placeholder" class="text-gray-400 text-center transition-opacity duration-300" style="display: block;">
+          Enter a SKU or scan a barcode to search for an image.
+        </div>
+      </div>
+    </div>
 
-    <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
-  </div>
+    <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
+  </div>
 
-  <!-- ✅ Load html5-qrcode AFTER the HTML -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
 
-  <!-- ✅ Main Script -->
-  <script>
-    window.addEventListener("DOMContentLoaded", () => {
+    <script>
+    window.addEventListener("DOMContentLoaded", () => {
 
-      const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
-      const IMAGE_SUFFIX = '/1.jpg';
+      const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
+      const IMAGE_SUFFIX = '/1.jpg';
 
-      const SKU_INPUT = document.getElementById('skuInput');
-      const PRODUCT_IMAGE = document.getElementById('productImage');
-      const PLACEHOLDER = document.getElementById('placeholder');
-      const STATUS_MESSAGE = document.getElementById('statusMessage');
-      const READER_DIV = document.getElementById('reader');
-      const SCAN_BUTTON = document.getElementById('scanButton');
-      const SCAN_BUTTON_TEXT = document.getElementById('scanButtonText');
-      const SCANNER_CONTAINER = document.getElementById('scannerContainer');
-      const SCANNER_LINE = document.getElementById('scanner-line');
+      // DOM Elements
+      const SKU_INPUT = document.getElementById('skuInput');
+      const PRODUCT_IMAGE = document.getElementById('productImage');
+      const PLACEHOLDER = document.getElementById('placeholder');
+      const STATUS_MESSAGE = document.getElementById('statusMessage');
+      const READER_DIV = document.getElementById('reader');
+      const SCAN_BUTTON = document.getElementById('scanButton');
+      const SCAN_BUTTON_TEXT = document.getElementById('scanButtonText');
+      const SCANNER_CONTAINER = document.getElementById('scannerContainer');
+      const SCANNER_LINE = document.getElementById('scanner-line');
 
-      let html5QrcodeScanner = null;
-      let isScanning = false;
+      let html5QrcodeScanner = null;
+      let isScanning = false;
+      let initialized = false; 
 
-      function initScanner() {
-        if (html5QrcodeScanner === null && window.Html5Qrcode) {
-          html5QrcodeScanner = new Html5Qrcode("reader");
-        }
-      }
+      function initScanner() {
+        // Ensure initialization only happens once and the library is loaded
+        if (!initialized && window.Html5Qrcode) {
+          html5QrcodeScanner = new Html5Qrcode("reader");
+          initialized = true; 
+        }
+      }
 
-      function onScanSuccess(decodedText) {
-        stopScanner();
-        const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
-        SKU_INPUT.value = cleanedSku;
-        fetchImage();
-        STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
-      }
+      function onScanSuccess(decodedText) {
+        stopScanner();
+        // Clean and standardize the scanned SKU
+        const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+        SKU_INPUT.value = cleanedSku;
+        fetchImage();
+        STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
+      }
 
-      async function startScanner() {
-        initScanner();
-        STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+      async function startScanner() {
+        initScanner();
+        
+        if (!html5QrcodeScanner) {
+          STATUS_MESSAGE.textContent = 'Error: Barcode library not ready.';
+          return;
+        }
 
-        if (!window.Html5Qrcode) {
-          STATUS_MESSAGE.textContent = 'Error: Html5Qrcode library not loaded.';
-          return;
-        }
+        STATUS_MESSAGE.textContent = 'Checking camera availability... (Requires HTTPS)';
 
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach(track => track.stop());
+        try {
+          // 1. Check for cameras and get the list
+          const videoDevices = await Html5Qrcode.getCameras();
+          if (!videoDevices.length) {
+            STATUS_MESSAGE.textContent = '❌ No camera found on this device.';
+            return;
+          }
 
-          const videoDevices = await Html5Qrcode.getCameras();
-          if (!videoDevices.length) {
-            STATUS_MESSAGE.textContent = 'No camera found.';
-            return;
-          }
+          // 2. Select camera (prioritize back/environment camera)
+          let cameraId = videoDevices[0].id;
+          const backCam = videoDevices.find(d =>
+            (d.label || '').toLowerCase().includes('back') ||
+            (d.label || '').toLowerCase().includes('environment')
+          );
+          if (backCam) cameraId = backCam.id;
 
-          let cameraId = videoDevices[0].id;
-          const backCam = videoDevices.find(d =>
-            (d.label || '').toLowerCase().includes('back') ||
-            (d.label || '').toLowerCase().includes('environment')
-          );
-          if (backCam) cameraId = backCam.id;
+          const config = { fps: 10, qrbox: { width: 250, height: 150 } };
 
-          const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+          // 3. Update UI before starting the camera stream
+          READER_DIV.style.display = 'block';
+          SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
+          SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
+          SCAN_BUTTON.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
+          SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
+          SCANNER_LINE.classList.remove('hidden');
+          isScanning = true;
 
-          READER_DIV.style.display = 'block';
-          SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
-          SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
-          SCAN_BUTTON.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
-          SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
-          SCANNER_LINE.classList.remove('hidden');
-          isScanning = true;
+          // 4. Start the camera and scanning process
+          await html5QrcodeScanner.start(
+            cameraId, 
+            config, 
+            onScanSuccess, 
+            (errorMessage) => { /* Optional: log minor scan errors */ }
+          );
+          STATUS_MESSAGE.textContent = 'Scanning... Place Barcode in the box.';
+        } catch (err) {
+          // This catches major failures (like camera denial/unavailable)
+          STATUS_MESSAGE.textContent = '❌ Camera access denied or unavailable. Check browser permissions.';
+          console.error('Camera Start Error:', err);
+          stopScanner(false); // Reset UI without attempting to stop the camera stream
+        }
+      }
 
-          await html5QrcodeScanner.start(cameraId, config, onScanSuccess, () => {});
-          STATUS_MESSAGE.textContent = 'Scanning...';
-        } catch (err) {
-          STATUS_MESSAGE.textContent = 'Camera access denied or unavailable.';
-          console.error('Camera Start Error:', err);
-          stopScanner(false);
-        }
-      }
+      function stopScanner(tryStop = true) {
+        if (isScanning) {
+          // Stop the HTML5-Qrcode stream cleanly
+          if (tryStop && html5QrcodeScanner) {
+            html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
+          }
+          // Reset UI state
+          READER_DIV.style.display = 'none';
+          SCANNER_CONTAINER.classList.remove('bg-gray-800', 'rounded-lg', 'p-2');
+          SCAN_BUTTON.classList.replace('bg-red-600', 'bg-green-600');
+          SCAN_BUTTON.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
+          SCAN_BUTTON_TEXT.textContent = 'Start Barcode Scan';
+          SCANNER_LINE.classList.add('hidden');
+          isScanning = false;
+        }
+      }
 
-      function stopScanner(tryStop = true) {
-        if (isScanning) {
-          if (tryStop && html5QrcodeScanner) {
-            html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
-          }
-          READER_DIV.style.display = 'none';
-          SCANNER_CONTAINER.classList.remove('bg-gray-800', 'rounded-lg', 'p-2');
-          SCAN_BUTTON.classList.replace('bg-red-600', 'bg-green-600');
-          SCAN_BUTTON.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
-          SCAN_BUTTON_TEXT.textContent = 'Start Barcode Scan';
-          SCANNER_LINE.classList.add('hidden');
-          isScanning = false;
-        }
-      }
+      function toggleScanner() {
+        if (isScanning) stopScanner();
+        else startScanner();
+      }
 
-      function toggleScanner() {
-        if (isScanning) stopScanner();
-        else startScanner();
-      }
+      window.fetchImage = function() { // Made globally accessible for the input's onkeypress
+        if (isScanning) stopScanner();
+        const sku = SKU_INPUT.value.trim().toUpperCase();
+        STATUS_MESSAGE.textContent = '';
+        
+        PRODUCT_IMAGE.classList.add('opacity-0');
+        PRODUCT_IMAGE.removeAttribute('src');
+        PLACEHOLDER.textContent = 'Searching...';
+        PLACEHOLDER.style.display = 'block';
 
-      function fetchImage() {
-        if (isScanning) stopScanner();
-        const sku = SKU_INPUT.value.trim().toUpperCase();
-        STATUS_MESSAGE.textContent = '';
-        PRODUCT_IMAGE.classList.add('opacity-0');
-        PRODUCT_IMAGE.removeAttribute('src');
-        PLACEHOLDER.textContent = 'Searching...';
-        PLACEHOLDER.style.display = 'block';
+        if (!sku) {
+          PLACEHOLDER.textContent = 'Please enter a SKU.';
+          return;
+        }
 
-        if (!sku) {
-          PLACEHOLDER.textContent = 'Please enter a SKU.';
-          return;
-        }
+        const imageUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
+        PRODUCT_IMAGE.src = imageUrl;
+        PLACEHOLDER.style.display = 'none';
+        STATUS_MESSAGE.textContent = `Loading image for SKU: ${sku}`;
+      }
 
-        const imageUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-        PRODUCT_IMAGE.src = imageUrl;
-        PLACEHOLDER.style.display = 'none';
-        STATUS_MESSAGE.textContent = `Loading image for SKU: ${sku}`;
-      }
+      window.handleImageError = function(img) { // Made globally accessible via onerror attribute
+        img.removeAttribute('src');
+        img.classList.add('opacity-0');
+        PLACEHOLDER.textContent = 'Image not found. Check SKU.';
+        PLACEHOLDER.style.display = 'block';
+        STATUS_MESSAGE.textContent = `❌ Image not found for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
+      }
 
-      function handleImageError(img) {
-        img.removeAttribute('src');
-        img.classList.add('opacity-0');
-        PLACEHOLDER.textContent = 'Image not found. Check SKU.';
-        PLACEHOLDER.style.display = 'block';
-        STATUS_MESSAGE.textContent = `❌ Image not found for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
-      }
-
-      SCAN_BUTTON.addEventListener("click", toggleScanner);
-      document.getElementById("lookupButton").addEventListener("click", fetchImage);
-    });
-  </script>
+      // Event Listeners
+      SCAN_BUTTON.addEventListener("click", toggleScanner);
+      document.getElementById("lookupButton").addEventListener("click", fetchImage);
+    });
+  </script>
 </body>
 </html>
