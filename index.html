@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Product SKU Barcode Scanner111111</title>
-
-  <!-- Tailwind CSS -->
+  <title>Fast SKU Barcode Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     body { font-family: Inter, sans-serif; background: #f7f7f7; }
     #reader { max-width: 100%; height: 300px; border-radius: .5rem; background: #000; overflow: hidden; position: relative; }
@@ -18,8 +15,8 @@
 
 <body class="p-4 sm:p-8 min-h-screen flex items-start justify-center">
   <div class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
-    <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
-    <p class="text-gray-500 mb-6">Scan a barcode or enter a SKU manually. If not found, tries A–Z variants.</p>
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">Fast Product SKU Scanner</h1>
+    <p class="text-gray-500 mb-6">Scan a barcode or enter a SKU manually. Finds image (A–Z fallback).</p>
 
     <button id="startScanBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 mb-4">
       Start Barcode Scan
@@ -51,7 +48,7 @@
     <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500"></p>
   </div>
 
-  <!-- Local html5-qrcode file -->
+  <!-- html5-qrcode (local copy recommended for GitHub Pages) -->
   <script src="js/html5-qrcode.min.js"></script>
 
   <script>
@@ -70,6 +67,7 @@
       let html5Scanner = null;
       let isScanning = false;
 
+      // ✅ Request camera permission only once
       async function requestCameraPermission() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -125,58 +123,50 @@
         stopScan();
         const cleaned = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
         skuInput.value = cleaned;
-        fetchImageSequential(cleaned);
+        fetchImageParallel(cleaned);
         statusMsg.textContent = `✅ Scanned: ${cleaned}`;
       }
 
-      function handleImageError(img) {
-        img.src = "";
-        img.classList.add("opacity-0");
+      function handleImageError() {
+        productImage.src = "";
+        productImage.classList.add("opacity-0");
         placeholder.style.display = "block";
         placeholder.textContent = "Image not found.";
         statusMsg.textContent = "⚠️ Image not found.";
       }
 
-      async function tryLoadImageSequential(baseSku) {
-        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const tryList = [baseSku, ...letters.split("").map(l => baseSku.slice(0, -1) + l)];
-
-        for (let i = 0; i < tryList.length; i++) {
-          const skuVariant = tryList[i];
-          const imgUrl = `${IMAGE_BASE_URL}${skuVariant}${IMAGE_SUFFIX}`;
-          statusMsg.textContent = `🔎 Trying ${skuVariant}`;
-          const exists = await new Promise(resolve => {
-            const img = new Image();
-            img.onload = () => resolve(true);
-            img.onerror = () => resolve(false);
-            img.src = imgUrl;
-          });
-          if (exists) return imgUrl;
-          await new Promise(r => setTimeout(r, 400)); // Wait before next try
-        }
-        return null;
-      }
-
-      async function fetchImageSequential(sku) {
-        stopScan();
+      // ✅ Optimized: try all A-Z in parallel, stop on first success
+      async function fetchImageParallel(baseSku) {
         placeholder.style.display = "none";
         productImage.classList.add("opacity-0");
         productImage.src = "";
+        statusMsg.textContent = `Checking SKU: ${baseSku}...`;
 
-        statusMsg.textContent = `Checking SKU: ${sku}...`;
-        const url = await tryLoadImageSequential(sku);
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+        const variants = [baseSku, ...letters.map(l => baseSku.slice(0, -1) + l)];
+        const urls = variants.map(v => `${IMAGE_BASE_URL}${v}${IMAGE_SUFFIX}`);
 
-        if (url) {
-          productImage.src = url;
+        const imageCheck = urls.map(url =>
+          new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(url);
+            img.onerror = () => reject();
+            img.src = url;
+          })
+        );
+
+        try {
+          const foundUrl = await Promise.any(imageCheck); // resolves on first success
+          productImage.src = foundUrl;
           placeholder.style.display = "none";
-          statusMsg.textContent = `✅ Found image for ${skuInput.value}`;
-        } else {
-          handleImageError(productImage);
+          statusMsg.textContent = `✅ Found image for ${baseSku}`;
+        } catch {
+          handleImageError();
         }
       }
 
       startBtn.addEventListener("click", () => isScanning ? stopScan() : startScan());
-      lookupBtn.addEventListener("click", () => fetchImageSequential(skuInput.value.trim().toUpperCase()));
+      lookupBtn.addEventListener("click", () => fetchImageParallel(skuInput.value.trim().toUpperCase()));
       window.handleImageError = handleImageError;
     }
 
