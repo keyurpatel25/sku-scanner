@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Product SKU Barcode Scanner</title>
 
-  <!-- Tailwind CSS CDN (can stay CDN; it's small) -->
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -42,7 +42,7 @@
       <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
       <div class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
         <img id="productImage" src="" alt="Product Image" class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
-          onload="this.classList.remove('opacity-0')" onerror="handleImageError(this)">
+          onload="this.classList.remove('opacity-0')">
         <div id="placeholder" class="text-gray-400 text-center">Enter or scan a SKU to view image.</div>
       </div>
     </div>
@@ -56,7 +56,7 @@
   <script>
     function initScannerApp() {
       const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
-      const IMAGE_SUFFIX = "/1.jpg";
+      const IMAGE_SUFFIX = "/3.jpg";
       const startBtn = document.getElementById("startScanBtn");
       const lookupBtn = document.getElementById("lookupBtn");
       const productImage = document.getElementById("productImage");
@@ -66,6 +66,7 @@
       const readerDiv = document.getElementById("reader");
       let html5Scanner = null;
       let isScanning = false;
+      let lastSkuTried = null;
 
       async function requestCameraPermission() {
         try {
@@ -123,7 +124,16 @@
         statusMsg.textContent = `✅ Scanned: ${cleaned}`;
       }
 
-      function fetchImage() {
+      async function checkImageExists(url) {
+        try {
+          const res = await fetch(url, { method: "HEAD" });
+          return res.ok;
+        } catch {
+          return false;
+        }
+      }
+
+      async function fetchImage() {
         stopScan();
         const sku = skuInput.value.trim().toUpperCase();
         if (!sku) {
@@ -132,11 +142,32 @@
           productImage.classList.add("opacity-0");
           return;
         }
-        const url = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-        productImage.classList.add("opacity-0");
-        productImage.src = url;
+
         placeholder.style.display = "none";
-        statusMsg.textContent = `Loading image for SKU: ${sku}`;
+        statusMsg.textContent = `Searching image for SKU: ${sku}`;
+        productImage.classList.add("opacity-0");
+
+        // try original SKU first
+        let foundUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
+        if (!(await checkImageExists(foundUrl))) {
+          // try replacing last character A–Z
+          const base = sku.slice(0, -1);
+          for (let c = 65; c <= 90; c++) {
+            const newSku = base + String.fromCharCode(c);
+            const testUrl = `${IMAGE_BASE_URL}${newSku}${IMAGE_SUFFIX}`;
+            statusMsg.textContent = `Trying variant: ${newSku}`;
+            if (await checkImageExists(testUrl)) {
+              foundUrl = testUrl;
+              statusMsg.textContent = `✅ Found image for ${newSku}`;
+              skuInput.value = newSku;
+              break;
+            }
+          }
+        } else {
+          statusMsg.textContent = `✅ Found image for ${sku}`;
+        }
+
+        productImage.src = foundUrl;
       }
 
       function handleImageError(img) {
