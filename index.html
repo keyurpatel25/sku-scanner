@@ -1,49 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Permission Request</title>
+    <title>Web Camera Example</title>
+    <style>
+        /* Simple styling to make the video element visible */
+        #videoElement {
+            width: 500px;
+            height: 375px;
+            border: 1px solid black;
+        }
+    </style>
 </head>
 <body>
 
-    <h1>Click the button to request Camera Access</h1>
-    <button id="cameraButton">Request Camera Permission</button>
-    <p id="message"></p>
-    <video id="videoFeed" autoplay style="width: 320px; height: 240px; border: 1px solid black; display: none;"></video>
+    <h1>Camera View</h1>
+    
+    <video id="videoElement" autoplay="true"></video>
 
     <script>
-        document.getElementById('cameraButton').addEventListener('click', function() {
-            const video = document.getElementById('videoFeed');
-            const message = document.getElementById('message');
+        // Select the video element from the HTML
+        const video = document.getElementById('videoElement');
 
-            // Check if the browser supports the MediaDevices API
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                // Request access to the video (camera)
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(function(stream) {
-                        // Success: Permission granted and stream started
-                        message.textContent = '✅ Camera access granted! Video feed is below.';
-                        video.style.display = 'block';
-                        video.srcObject = stream; // Attach the stream to the video element
-                        console.log('Camera stream started.');
-                    })
-                    .catch(function(err) {
-                        // Error: Permission denied or other issues (e.g., no camera)
-                        if (err.name === 'NotAllowedError') {
-                            message.textContent = '❌ Permission denied by the user.';
-                        } else if (err.name === 'NotFoundError') {
-                            message.textContent = '❌ No camera found on this device.';
-                        } else {
-                            message.textContent = `❌ An error occurred: ${err.name}`;
-                        }
-                        console.error('getUserMedia error:', err);
-                    });
-            } else {
-                // Browser does not support the API
-                message.textContent = '❌ Your browser does not support the MediaDevices API.';
-            }
-        });
+        // Check if the browser supports the MediaDevices API
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            // Request access to the video stream
+            navigator.mediaDevices.getUserMedia({ 
+                video: true // Request video, could also request audio: true
+            })
+            .then(function(stream) {
+                // Success: Attach the stream to the video element
+                video.srcObject = stream;
+            })
+            .catch(function(error) {
+                // Error: Handle cases where permission is denied or no camera is found
+                console.error("Error accessing the camera: ", error);
+                alert("Could not access the camera. Please check your permissions.");
+            });
+        } else {
+            alert("Your browser does not support the camera API.");
+        }
     </script>
 
 </body>
