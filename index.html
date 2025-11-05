@@ -1,125 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hybrid SKU Scanner - Camera Confirmed</title>
-    
-    <style>
-        /* Minimal required styling for the scanner area */
-        #reader { 
-            width: 320px; 
-            height: 240px; 
-            border: 2px solid green; 
-            margin-top: 10px;
-            overflow: hidden; /* Important for html5-qrcode video element */
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product SKU Barcode Scanner</title>
+
+  <!-- Tailwind for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- html5-qrcode library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
+
+  <style>
+    body { font-family: Inter, sans-serif; background-color: #f7f7f7; }
+    #reader { max-width: 100%; height: 300px; border-radius: .5rem; background: #000; overflow: hidden; position: relative; }
+    .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(to right, transparent, #10b981, transparent); animation: scan-move 2s infinite alternate ease-in-out; z-index: 10; }
+    @keyframes scan-move { 0% { top: 0%; } 100% { top: 98%; } }
+  </style>
 </head>
 
-<body>
-    <h1>SKU Scanner (Hybrid Start)</h1>
+<body class="p-4 sm:p-8 min-h-screen flex items-start justify-center">
 
-    <div id="reader" style="display: block;"></div>
-    
-    <hr>
+  <div class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
+    <p class="text-gray-500 mb-6">Click below to allow camera access and scan a barcode.</p>
 
-    <h2>Scan Result:</h2>
-    <input type="text" id="skuInput" placeholder="Scanned SKU will appear here" readonly style="width: 100%; padding: 10px; margin-bottom: 10px;">
-    <p id="statusMessage">Initializing scanner...</p>
+    <div class="mb-6">
+      <button id="startScanBtn"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 active:scale-95 transform">
+        Start Barcode Scan
+      </button>
+    </div>
 
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
+    <div id="reader" style="display:none;">
+      <div id="scanner-line" class="scanner-line"></div>
+    </div>
 
-    <script>
-        window.addEventListener("DOMContentLoaded", () => {
-            
-            // DOM Elements
-            const SKU_INPUT = document.getElementById('skuInput');
-            const STATUS_MESSAGE = document.getElementById('statusMessage');
-            const READER_DIV = document.getElementById('reader');
+    <div class="mt-6 flex flex-col sm:flex-row gap-4">
+      <input id="skuInput" type="text" placeholder="Enter SKU" 
+        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 uppercase tracking-widest text-lg font-medium shadow-sm transition">
+      <button onclick="fetchImage()" 
+        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95 transform">
+        Lookup Image
+      </button>
+    </div>
 
-            let html5QrcodeScanner = null;
-            let currentStream = null;
+    <div class="mt-8">
+      <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
+      <div class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
+        <img id="productImage" src="" alt="Product Image" class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
+          onload="this.classList.remove('opacity-0')"
+          onerror="handleImageError(this)">
+        <div id="placeholder" class="text-gray-400 text-center">Enter or scan a SKU to view image.</div>
+      </div>
+    </div>
 
-            function onScanSuccess(decodedText) {
-                // 1. Stop the stream
-                stopScanner();
-                
-                // 2. Process the result
-                const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
-                SKU_INPUT.value = cleanedSku;
-                STATUS_MESSAGE.textContent = `✅ Scan Success! Scanned SKU: ${cleanedSku}`;
-            }
+    <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500"></p>
+  </div>
 
-            function stopScanner() {
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.stop().then(() => {
-                        console.log("Html5Qrcode stopped.");
-                    }).catch(console.error);
-                    html5QrcodeScanner = null;
-                }
-                
-                // Manually stop all tracks on the stream to turn off the camera light
-                if (currentStream) {
-                    currentStream.getTracks().forEach(track => track.stop());
-                    currentStream = null;
-                }
-                
-                STATUS_MESSAGE.textContent = 'Scan stopped.';
-                READER_DIV.style.display = 'none';
-            }
+  <script>
+    const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
+    const IMAGE_SUFFIX = "/1.jpg";
+    const productImage = document.getElementById("productImage");
+    const placeholder = document.getElementById("placeholder");
+    const statusMsg = document.getElementById("statusMessage");
+    const skuInput = document.getElementById("skuInput");
+    const readerDiv = document.getElementById("reader");
+    let html5Scanner = null;
+    let isScanning = false;
 
+    // Ask for camera permission first
+    async function requestCameraPermission() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(t => t.stop()); // stop preview stream
+        return true;
+      } catch (err) {
+        alert("Camera access denied or unavailable. Please enable camera permissions.");
+        console.error(err);
+        return false;
+      }
+    }
 
-            function startCameraAndScanner() {
-                STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+    async function startScan() {
+      if (!window.Html5Qrcode) {
+        alert("Barcode library not loaded. Check internet connection.");
+        return;
+      }
 
-                // **STEP 1: Use YOUR working native API to get the stream**
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-                    .then(function(stream) {
-                        currentStream = stream; // Store the stream for cleanup
-                        
-                        // **STEP 2: Pass the stream to the html5-qrcode library**
-                        html5QrcodeScanner = new Html5Qrcode("reader");
+      const allowed = await requestCameraPermission();
+      if (!allowed) return;
 
-                        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-                        
-                        // Use the start stream method with the stream object
-                        html5QrcodeScanner.start(
-                            stream, // Pass the successful stream here!
-                            config, 
-                            onScanSuccess, 
-                            () => { /* Quiet log for scan failures */ }
-                        ).then(() => {
-                            STATUS_MESSAGE.textContent = 'Scanning... Look for a barcode.';
-                            READER_DIV.style.display = 'block';
-                        }).catch(err => {
-                            STATUS_MESSAGE.textContent = '❌ Scanner failed to start on provided stream.';
-                            console.error("Html5Qrcode Start Error:", err);
-                            stopScanner(); // Clean up on failure
-                        });
+      if (!html5Scanner) html5Scanner = new Html5Qrcode("reader");
+      readerDiv.style.display = "block";
+      statusMsg.textContent = "Scanning... place barcode in view.";
 
-                    })
-                    .catch(function(error) {
-                        // This handles permission denial or no camera found
-                        STATUS_MESSAGE.textContent = '❌ Camera access denied or unavailable.';
-                        console.error("Native Camera Access Error: ", error);
-                    });
-                } else {
-                    STATUS_MESSAGE.textContent = "Your browser does not support the camera API.";
-                }
-            }
-            
-            // Start the process automatically when the page loads
-            startCameraAndScanner();
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices.length) {
+          alert("No camera detected.");
+          return;
+        }
+        let cameraId = devices[0].id;
+        const backCam = devices.find(d => (d.label || '').toLowerCase().includes('back') || (d.label || '').toLowerCase().includes('environment'));
+        if (backCam) cameraId = backCam.id;
 
-            // Optional: Add a button to stop the scan
-            const stopButton = document.createElement('button');
-            stopButton.textContent = 'Stop Camera';
-            stopButton.onclick = stopScanner;
-            document.body.appendChild(stopButton);
-        });
-    </script>
+        isScanning = true;
+        await html5Scanner.start(cameraId, { fps: 10, qrbox: { width: 250, height: 150 } }, onScanSuccess);
+      } catch (e) {
+        console.error("Scanner error:", e);
+        alert("Error starting scanner. Check console for details.");
+      }
+    }
 
+    function stopScan() {
+      if (isScanning && html5Scanner) {
+        html5Scanner.stop().catch(console.error);
+        isScanning = false;
+        readerDiv.style.display = "none";
+        statusMsg.textContent = "Scanner stopped.";
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      stopScan();
+      const cleaned = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+      skuInput.value = cleaned;
+      fetchImage();
+      statusMsg.textContent = `✅ Scanned: ${cleaned}`;
+    }
+
+    function fetchImage() {
+      stopScan();
+      const sku = skuInput.value.trim().toUpperCase();
+      if (!sku) {
+        placeholder.textContent = "Please enter a SKU.";
+        productImage.src = "";
+        productImage.classList.add("opacity-0");
+        return;
+      }
+      const url = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
+      productImage.classList.add("opacity-0");
+      productImage.src = url;
+      placeholder.style.display = "none";
+      statusMsg.textContent = `Loading image for SKU: ${sku}`;
+    }
+
+    function handleImageError(img) {
+      img.src = "";
+      img.classList.add("opacity-0");
+      placeholder.style.display = "block";
+      placeholder.textContent = "Image not found.";
+      statusMsg.textContent = "⚠️ Image not found for this SKU.";
+    }
+
+    document.getElementById("startScanBtn").addEventListener("click", () => {
+      if (isScanning) stopScan();
+      else startScan();
+    });
+  </script>
 </body>
 </html>
