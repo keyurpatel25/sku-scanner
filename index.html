@@ -3,131 +3,70 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Simple SKU Scanner - Camera Test</title>
+    <title>Camera Access Test</title>
     
     <style>
-        /* Minimal required styling for the scanner area */
-        #reader { width: 300px; height: 200px; border: 1px solid black; margin-bottom: 20px; }
+        #reader { width: 320px; height: 240px; border: 2px solid green; margin-top: 10px; }
     </style>
 </head>
 
 <body>
-    <h1>SKU Scanner Camera Test</h1>
+    <h1>Camera Permission Test</h1>
 
-    <div id="scannerContainer">
-        <button id="scanButton">
-            <span id="scanButtonText">Start Barcode Scan</span>
-        </button>
-
-        <div id="reader" style="display: none;"></div>
-    </div>
+    <button id="scanButton">Start Camera Test</button>
     
-    <hr>
-
-    <h2>Results</h2>
-    <input type="text" id="skuInput" placeholder="Scanned SKU will appear here" readonly style="width: 100%; padding: 10px; margin-bottom: 10px;">
-    <p id="statusMessage">Ready.</p>
+    <div id="reader" style="display: none;"></div>
+    
+    <p id="statusMessage">
+        Status: Click the button and watch the address bar for a camera icon.
+    </p>
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
 
     <script>
         window.addEventListener("DOMContentLoaded", () => {
             
-            // DOM Elements
-            const SKU_INPUT = document.getElementById('skuInput');
             const STATUS_MESSAGE = document.getElementById('statusMessage');
             const READER_DIV = document.getElementById('reader');
             const SCAN_BUTTON = document.getElementById('scanButton');
-            const SCAN_BUTTON_TEXT = document.getElementById('scanButtonText');
 
             let html5QrcodeScanner = null;
-            let isScanning = false;
-            let initialized = false; 
 
-            function initScanner() {
-                if (!initialized && window.Html5Qrcode) {
+            function initAndStartScanner() {
+                // Initialize the scanner
+                if (!html5QrcodeScanner && window.Html5Qrcode) {
                     html5QrcodeScanner = new Html5Qrcode("reader");
-                    initialized = true; 
                 }
-            }
-
-            function onScanSuccess(decodedText) {
-                stopScanner();
-                // Simple cleanup
-                const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
-                SKU_INPUT.value = cleanedSku;
-                STATUS_MESSAGE.textContent = `✅ Scan Success! Scanned SKU: ${cleanedSku}`;
-            }
-
-            async function startScanner() {
-                initScanner();
                 
                 if (!html5QrcodeScanner) {
-                    STATUS_MESSAGE.textContent = 'Error: Barcode library not ready.';
+                    STATUS_MESSAGE.textContent = 'Error: Scanner library not ready.';
                     return;
                 }
 
-                STATUS_MESSAGE.textContent = 'Checking camera availability... (Requires HTTPS)';
+                STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+                READER_DIV.style.display = 'block';
 
-                try {
-                    // 1. Check for cameras and get the list
-                    const videoDevices = await Html5Qrcode.getCameras();
-                    if (!videoDevices.length) {
-                        STATUS_MESSAGE.textContent = '❌ No camera found on this device.';
-                        return;
-                    }
-
-                    // 2. Select camera (prioritize back/environment camera)
-                    let cameraId = videoDevices[0].id;
-                    const backCam = videoDevices.find(d =>
-                        (d.label || '').toLowerCase().includes('back') ||
-                        (d.label || '').toLowerCase().includes('environment')
-                    );
-                    if (backCam) cameraId = backCam.id;
-
-                    const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-
-                    // 3. Update UI before starting the camera stream
-                    READER_DIV.style.display = 'block';
-                    SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
-                    isScanning = true;
-
-                    // 4. Start the camera and scanning process (This is where the permission prompt happens)
-                    await html5QrcodeScanner.start(
-                        cameraId, 
-                        config, 
-                        onScanSuccess, 
-                        (errorMessage) => { /* log scan errors quietly */ }
-                    );
-                    STATUS_MESSAGE.textContent = 'Scanning...';
-                } catch (err) {
-                    // This catches major failures (like camera denial/unavailable)
-                    STATUS_MESSAGE.textContent = '❌ Camera Start Failed. Check permissions and ensure you are on HTTPS.';
-                    console.error('Camera Start Error:', err);
-                    stopScanner(false);
-                }
-            }
-
-            function stopScanner(tryStop = true) {
-                if (isScanning) {
-                    if (tryStop && html5QrcodeScanner) {
-                        html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
-                    }
-                    // Reset UI state
+                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+                
+                // The start call triggers the permission request
+                html5QrcodeScanner.start(
+                    { facingMode: "environment" }, // Try to force the back camera
+                    config, 
+                    (decodedText) => {
+                        html5QrcodeScanner.stop().catch(console.error);
+                        READER_DIV.style.display = 'none';
+                        STATUS_MESSAGE.textContent = `✅ Successfully Scanned: ${decodedText}`;
+                    }, 
+                    () => {} 
+                ).catch((err) => {
+                    // This catches the PermissionDeniedError
+                    STATUS_MESSAGE.textContent = '❌ Failed to start camera. Check that you are on HTTPS and permissions are allowed.';
+                    console.error("Camera Start Error:", err);
                     READER_DIV.style.display = 'none';
-                    SCAN_BUTTON_TEXT.textContent = 'Start Barcode Scan';
-                    isScanning = false;
-                    STATUS_MESSAGE.textContent = 'Scan stopped.';
-                }
+                });
             }
 
-            function toggleScanner() {
-                if (isScanning) stopScanner();
-                else startScanner();
-            }
-
-            // Event Listener
-            SCAN_BUTTON.addEventListener("click", toggleScanner);
+            SCAN_BUTTON.addEventListener("click", initAndStartScanner);
         });
     </script>
 </body>
