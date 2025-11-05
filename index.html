@@ -1,74 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
+<!--
+Source - https://stackoverflow.com/questions/9431475/html5-camera-access
+Posted by love sunset
+Retrieved 05/11/2025, License - CC-BY-SA 4.0
+-->
+
+<!doctype html>
+<html>
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Camera Access Test</title>
-    
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0">
     <style>
-        #reader { width: 320px; height: 240px; border: 2px solid green; margin-top: 10px; }
+        body {width: 100%;}
+        canvas {display: none;}
     </style>
-</head>
-
-<body>
-    <h1>Camera Permission Test</h1>
-
-    <button id="scanButton">Start Camera Test</button>
-    
-    <div id="reader" style="display: none;"></div>
-    
-    <p id="statusMessage">
-        Status: Click the button and watch the address bar for a camera icon.
-    </p>
-
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
-
     <script>
-        window.addEventListener("DOMContentLoaded", () => {
-            
-            const STATUS_MESSAGE = document.getElementById('statusMessage');
-            const READER_DIV = document.getElementById('reader');
-            const SCAN_BUTTON = document.getElementById('scanButton');
+        var video, canvas, msg;
+        var load = function () {
+            video  = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            msg    = document.getElementById('error');
+            if( navigator.getUserMedia ) {
+                video.onclick = function () {
+                    var context = canvas.getContext("2d");
+                    context.drawImage(video, 0, 0, 240, 320);
+                    var image = {"demo" : {
+                        "type"  : "device",
+                        "image" : canvas.toDataURL("image/png")
+                    }};
+                };
 
-            let html5QrcodeScanner = null;
+                var success = function ( stream ) {
+                    video.src = stream;
+                };
 
-            function initAndStartScanner() {
-                // Initialize the scanner
-                if (!html5QrcodeScanner && window.Html5Qrcode) {
-                    html5QrcodeScanner = new Html5Qrcode("reader");
-                }
-                
-                if (!html5QrcodeScanner) {
-                    // This error should now only occur if the library failed to download
-                    STATUS_MESSAGE.textContent = 'Error: Scanner library not ready (check console network errors).';
-                    return;
-                }
+                var error = function ( err ) {
+                    msg.innerHTML = "Error: " + err.code;
+                };
 
-                STATUS_MESSAGE.textContent = 'Requesting camera permission...';
-                READER_DIV.style.display = 'block';
+                navigator.getUserMedia('video', success, error);
 
-                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-                
-                // The start call triggers the permission request
-                html5QrcodeScanner.start(
-                    { facingMode: "environment" }, // Try to force the back camera
-                    config, 
-                    (decodedText) => {
-                        html5QrcodeScanner.stop().catch(console.error);
-                        READER_DIV.style.display = 'none';
-                        STATUS_MESSAGE.textContent = `✅ Successfully Scanned: ${decodedText}`;
-                    }, 
-                    () => {} 
-                ).catch((err) => {
-                    // This catches the PermissionDeniedError
-                    STATUS_MESSAGE.textContent = '❌ Failed to start camera. Check that you are on HTTPS and permissions are allowed.';
-                    console.error("Camera Start Error:", err);
-                    READER_DIV.style.display = 'none';
-                });
+            } else {
+                msg.innerHTML = "Native web camera not supported :(";
             }
 
-            SCAN_BUTTON.addEventListener("click", initAndStartScanner);
-        });
+        };
+
+        window.addEventListener('DOMContentLoaded', load, false);
     </script>
+</head>
+<body>
+    <video  id="video" width="240" height="320" autoplay> </video>
+    <p      id="error">Click on the video to send a snapshot to the receiving screen</p>
+    <canvas id="canvas" width="240" height="320"> </canvas>
 </body>
 </html>
