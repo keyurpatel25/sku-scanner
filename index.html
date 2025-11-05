@@ -1,44 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Web Camera Example</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hybrid SKU Scanner - Camera Confirmed</title>
+    
     <style>
-        /* Simple styling to make the video element visible */
-        #videoElement {
-            width: 500px;
-            height: 375px;
-            border: 1px solid black;
+        /* Minimal required styling for the scanner area */
+        #reader { 
+            width: 320px; 
+            height: 240px; 
+            border: 2px solid green; 
+            margin-top: 10px;
+            overflow: hidden; /* Important for html5-qrcode video element */
         }
     </style>
 </head>
-<body>
 
-    <h1>Camera View</h1>
+<body>
+    <h1>SKU Scanner (Hybrid Start)</h1>
+
+    <div id="reader" style="display: block;"></div>
     
-    <video id="videoElement" autoplay="true"></video>
+    <hr>
+
+    <h2>Scan Result:</h2>
+    <input type="text" id="skuInput" placeholder="Scanned SKU will appear here" readonly style="width: 100%; padding: 10px; margin-bottom: 10px;">
+    <p id="statusMessage">Initializing scanner...</p>
+
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
 
     <script>
-        // Select the video element from the HTML
-        const video = document.getElementById('videoElement');
+        window.addEventListener("DOMContentLoaded", () => {
+            
+            // DOM Elements
+            const SKU_INPUT = document.getElementById('skuInput');
+            const STATUS_MESSAGE = document.getElementById('statusMessage');
+            const READER_DIV = document.getElementById('reader');
 
-        // Check if the browser supports the MediaDevices API
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            // Request access to the video stream
-            navigator.mediaDevices.getUserMedia({ 
-                video: true // Request video, could also request audio: true
-            })
-            .then(function(stream) {
-                // Success: Attach the stream to the video element
-                video.srcObject = stream;
-            })
-            .catch(function(error) {
-                // Error: Handle cases where permission is denied or no camera is found
-                console.error("Error accessing the camera: ", error);
-                alert("Could not access the camera. Please check your permissions.");
-            });
-        } else {
-            alert("Your browser does not support the camera API.");
-        }
+            let html5QrcodeScanner = null;
+            let currentStream = null;
+
+            function onScanSuccess(decodedText) {
+                // 1. Stop the stream
+                stopScanner();
+                
+                // 2. Process the result
+                const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+                SKU_INPUT.value = cleanedSku;
+                STATUS_MESSAGE.textContent = `✅ Scan Success! Scanned SKU: ${cleanedSku}`;
+            }
+
+            function stopScanner() {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.stop().then(() => {
+                        console.log("Html5Qrcode stopped.");
+                    }).catch(console.error);
+                    html5QrcodeScanner = null;
+                }
+                
+                // Manually stop all tracks on the stream to turn off the camera light
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+                
+                STATUS_MESSAGE.textContent = 'Scan stopped.';
+                READER_DIV.style.display = 'none';
+            }
+
+
+            function startCameraAndScanner() {
+                STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+
+                // **STEP 1: Use YOUR working native API to get the stream**
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                    .then(function(stream) {
+                        currentStream = stream; // Store the stream for cleanup
+                        
+                        // **STEP 2: Pass the stream to the html5-qrcode library**
+                        html5QrcodeScanner = new Html5Qrcode("reader");
+
+                        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+                        
+                        // Use the start stream method with the stream object
+                        html5QrcodeScanner.start(
+                            stream, // Pass the successful stream here!
+                            config, 
+                            onScanSuccess, 
+                            () => { /* Quiet log for scan failures */ }
+                        ).then(() => {
+                            STATUS_MESSAGE.textContent = 'Scanning... Look for a barcode.';
+                            READER_DIV.style.display = 'block';
+                        }).catch(err => {
+                            STATUS_MESSAGE.textContent = '❌ Scanner failed to start on provided stream.';
+                            console.error("Html5Qrcode Start Error:", err);
+                            stopScanner(); // Clean up on failure
+                        });
+
+                    })
+                    .catch(function(error) {
+                        // This handles permission denial or no camera found
+                        STATUS_MESSAGE.textContent = '❌ Camera access denied or unavailable.';
+                        console.error("Native Camera Access Error: ", error);
+                    });
+                } else {
+                    STATUS_MESSAGE.textContent = "Your browser does not support the camera API.";
+                }
+            }
+            
+            // Start the process automatically when the page loads
+            startCameraAndScanner();
+
+            // Optional: Add a button to stop the scan
+            const stopButton = document.createElement('button');
+            stopButton.textContent = 'Stop Camera';
+            stopButton.onclick = stopScanner;
+            document.body.appendChild(stopButton);
+        });
     </script>
 
 </body>
