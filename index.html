@@ -66,7 +66,6 @@
       const readerDiv = document.getElementById("reader");
       let html5Scanner = null;
       let isScanning = false;
-      let lastSkuTried = null;
 
       async function requestCameraPermission() {
         try {
@@ -147,27 +146,30 @@
         statusMsg.textContent = `Searching image for SKU: ${sku}`;
         productImage.classList.add("opacity-0");
 
-        // try original SKU first
-        let foundUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-        if (!(await checkImageExists(foundUrl))) {
-          // try replacing last character A–Z
-          const base = sku.slice(0, -1);
-          for (let c = 65; c <= 90; c++) {
-            const newSku = base + String.fromCharCode(c);
-            const testUrl = `${IMAGE_BASE_URL}${newSku}${IMAGE_SUFFIX}`;
-            statusMsg.textContent = `Trying variant: ${newSku}`;
-            if (await checkImageExists(testUrl)) {
-              foundUrl = testUrl;
-              statusMsg.textContent = `✅ Found image for ${newSku}`;
-              skuInput.value = newSku;
-              break;
-            }
+        const variants = [sku, ...Array.from({ length: 26 }, (_, i) => sku.slice(0, -1) + String.fromCharCode(65 + i))];
+        let foundUrl = null;
+
+        for (const variant of variants) {
+          const url = `${IMAGE_BASE_URL}${variant}${IMAGE_SUFFIX}`;
+          statusMsg.textContent = `Trying: ${variant}`;
+          const exists = await checkImageExists(url);
+          if (exists) {
+            foundUrl = url;
+            skuInput.value = variant;
+            statusMsg.textContent = `✅ Found image for ${variant}`;
+            break;
           }
-        } else {
-          statusMsg.textContent = `✅ Found image for ${sku}`;
+          // Wait 300ms between tries to avoid spam
+          await new Promise(res => setTimeout(res, 300));
         }
 
-        productImage.src = foundUrl;
+        if (foundUrl) {
+          productImage.src = foundUrl;
+        } else {
+          placeholder.style.display = "block";
+          placeholder.textContent = "Image not found.";
+          statusMsg.textContent = "⚠️ No matching image found for any variant.";
+        }
       }
 
       function handleImageError(img) {
