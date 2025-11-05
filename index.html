@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FabAlley SKU Scanner</title>
+    <title>FabAlley SKU Scanner (ZXing)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -12,7 +12,7 @@
         body { background: #f5f8fc; font-family: 'Inter', sans-serif; }
         #video-container { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
         
-        /* Scanning Box Visuals */
+        /* ZXing doesn't use the canvas drawing features of Quagga, but we keep the visual box */
         .scan-box {
             position: absolute;
             top: 50%; left: 50%;
@@ -21,14 +21,14 @@
             border: 2px solid #22c55e; /* Green Border */
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(34,197,94,0.6);
-            z-index: 10; /* Ensure box is above camera feed */
+            z-index: 10;
         }
         .scan-line {
             position: absolute;
             width: 100%; height: 2px;
             top: 0;
             background: linear-gradient(to right, transparent, #22c55e, transparent);
-            animation: scan-move 1.5s infinite alternate; /* Faster animation */
+            animation: scan-move 1.5s infinite alternate;
         }
         @keyframes scan-move { 0% { top: 0; } 100% { top: calc(100% - 2px); } }
     </style>
@@ -36,11 +36,11 @@
 
 <body class="flex justify-center items-center min-h-screen p-4">
     <div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6">
-        <h1 class="text-2xl font-bold text-center mb-2">FabAlley SKU Scanner</h1>
+        <h1 class="text-2xl font-bold text-center mb-2">FabAlley SKU Scanner (ZXing)</h1>
         <p class="text-center text-gray-500 mb-4">Scan or enter SKU to view product image</p>
 
         <div id="video-container" class="aspect-video relative mb-4">
-            <div id="cameraPreview" class="w-full h-full"></div>
+            <video id="cameraPreview" class="w-full h-full object-cover"></video>
             <div class="scan-box"><div class="scan-line"></div></div>
         </div>
 
@@ -65,9 +65,12 @@
         </div>
     </div>
 
-    <script src="quagga.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <script>
+        // Aliases for ZXing
+        const { BrowserCodeReader, DecodeHintType, BarcodeFormat } = ZXing;
+
         const skuInput = document.getElementById("skuInput");
         const productImage = document.getElementById("productImage");
         const placeholder = document.getElementById("placeholder");
@@ -75,19 +78,19 @@
         const stopBtn = document.getElementById("stopBtn");
         const statusMsg = document.getElementById("statusMessage");
         const lookupBtn = document.getElementById("lookupBtn");
+        const videoElement = document.getElementById("cameraPreview");
 
         const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
         const IMAGE_SUFFIX = "/1.jpg";
 
+        let codeReader; // Global variable for ZXing reader
         let lastScanned = "";
         let isScanning = false;
         let isLoading = false;
-        let currentAbortController = null; // For cancelling fetch requests
-        let detectionTimeout = null;      // For debouncing scan results
+        let currentAbortController = null;
 
         // --- UTILITY FUNCTIONS ---
 
-        /** * Resets the UI state for the product image display. */
         function resetUI() {
             productImage.classList.add("opacity-0");
             productImage.removeAttribute("src");
@@ -95,101 +98,71 @@
             placeholder.textContent = "Enter or scan SKU";
         }
 
-        // 🔹 Start Scanner
+        // 🔹 Start Scanner (using ZXing)
         async function startScanner() {
             if (isScanning) return;
-            const granted = await ensureCameraAccess();
-            if (!granted) return;
 
             resetUI();
             statusMsg.textContent = "Starting camera...";
             startBtn.classList.add("hidden");
             stopBtn.classList.remove("hidden");
 
-            Quagga.init({
-                inputStream: {
-                    type: "LiveStream",
-                    constraints: {
-                        facingMode: "environment",
-                        // OPTIMIZATION: Lower resolution for faster frame processing
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    },
-                    target: document.querySelector("#cameraPreview")
-                },
-                decoder: { 
-                    // OPTIMIZATION: Use only the necessary decoder for SKUs (Code 128 is common)
-                    readers: ["code_128_reader"] 
-                },
-                locate: true,
-                // OPTIMIZATION: Process 10 frames per second instead of maximum
-                frequency: 10,
-                // OPTIMIZATION: Focus scanning on the center area
-                area: {
-                    top: "20%",
-                    right: "25%",
-                    left: "25%",
-                    bottom: "20%"
-                }
-            }, (err) => {
-                if (err) {
-                    console.error(err);
-                    alert("Failed to start camera: " + err);
-                    statusMsg.textContent = "Camera error.";
-                    startBtn.classList.remove("hidden");
-                    stopBtn.classList.add("hidden");
-                    return;
-                }
-                Quagga.start();
-                isScanning = true;
-                statusMsg.textContent = "📷 Scanning barcode...";
-            });
-
-            Quagga.onDetected(onDetected);
-        }
-
-        // 🔹 Ensure camera permission
-        async function ensureCameraAccess() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                stream.getTracks().forEach(t => t.stop());
-                return true;
-            } catch (e) {
-                alert("Camera permission denied or not available.");
-                console.error(e);
-                return false;
+                // ZXing setup
+                const hints = new Map();
+                // We only want Code 128 (most common retail/SKU barcode)
+                hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+                
+                // Initialize the code reader
+                codeReader = new BrowserCodeReader(hints);
+                
+                // Start decoding from the environment camera
+                codeReader.decodeFromVideoDevice(null, videoElement, (result, error) => {
+                    if (result) {
+                        onDetected(result.text.trim().toUpperCase());
+                    }
+                    // Handle error if needed (e.g., if the camera stream stops)
+                });
+
+                isScanning = true;
+                statusMsg.textContent = "📷 Scanning barcode (ZXing)...";
+            } catch (err) {
+                console.error(err);
+                alert("Failed to start camera: " + err);
+                statusMsg.textContent = "Camera error.";
+                startBtn.classList.remove("hidden");
+                stopBtn.classList.add("hidden");
             }
         }
 
-        // 🔹 Stop Scanner
+        // 🔹 Stop Scanner (using ZXing)
         function stopScanner() {
             if (!isScanning) return;
-            Quagga.stop();
+            
+            if (codeReader) {
+                codeReader.reset(); // Stop the camera stream and decoding
+            }
+            
             isScanning = false;
             startBtn.classList.remove("hidden");
             stopBtn.classList.add("hidden");
             statusMsg.textContent = "Scanner stopped.";
         }
 
-        // 🔹 Handle Detected Barcode (debounced)
-        function onDetected(result) {
-            const code = result.codeResult.code.trim().toUpperCase();
+        // 🔹 Handle Detected Barcode 
+        // Note: ZXing is fast, so debouncing might be less critical, but we keep the duplicate check.
+        async function onDetected(code) {
+            if (code === lastScanned || isLoading) return;
 
-            if (code === lastScanned) return;
+            lastScanned = code;
+            statusMsg.textContent = `✅ SKU Detected: ${code}`;
+            skuInput.value = code;
 
-            // Debounce: Wait a small period (150ms) to ensure it's the final scan result
-            clearTimeout(detectionTimeout);
-            detectionTimeout = setTimeout(async () => {
-                lastScanned = code;
-                statusMsg.textContent = `✅ SKU Detected: ${code}`;
-                skuInput.value = code;
-                await fetchImage(code);
-            }, 150);
+            await fetchImage(code);
         }
 
-        // 🔹 Fetch image with fast A–Z logic
+        // 🔹 Fetch image with fast A–Z logic (Remains the same, focusing on network speed)
         async function fetchImage(sku) {
-            // RELIABILITY: Abort previous pending requests
             if (currentAbortController) {
                 currentAbortController.abort();
             }
@@ -203,30 +176,27 @@
             statusMsg.textContent = `Loading image for ${sku}...`;
 
             const urls = [];
-            // 1. Exact SKU check
             const exactUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
             urls.push(exactUrl);
 
-            // 2. A-Z Fallback Logic (XMS29756C -> XMS29756A, XMS29756B, etc.)
+            // A-Z Fallback Logic
             const base = sku.slice(0, -1);
             const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             for (const ch of letters) {
-                // Skip the exact match, already checked
                 if (`${base}${ch}` === sku) continue; 
                 urls.push(`${IMAGE_BASE_URL}${base}${ch}${IMAGE_SUFFIX}`);
             }
 
             try {
                 for (const url of urls) {
-                    const found = await checkImage(url, signal); // Fast HEAD check
+                    const found = await checkImage(url, signal); 
                     if (found) {
-                        showImage(url, sku); // Immediately sets src and loads image
+                        showImage(url, sku); 
                         isLoading = false;
-                        return; // FOUND IMAGE: Skip all other checks and exit
+                        return; // FOUND IMAGE: Skip all other checks
                     }
                 }
 
-                // No image found after all checks
                 statusMsg.textContent = "⚠️ No image found.";
                 placeholder.style.display = "block";
                 placeholder.textContent = "Image not found.";
@@ -248,17 +218,16 @@
         function showImage(url, sku) {
             placeholder.style.display = "none";
             
-            // Use event listeners for reliable load and error handling
             productImage.onload = () => {
                 productImage.classList.remove("opacity-0");
                 statusMsg.textContent = `✅ Image loaded for ${sku}`;
-                productImage.onload = null; // Clear handler
+                productImage.onload = null;
             };
             productImage.onerror = () => {
                 statusMsg.textContent = `⚠️ Failed to display image for ${sku}`;
                 resetUI();
                 placeholder.textContent = "Image failed to load.";
-                productImage.onerror = null; // Clear handler
+                productImage.onerror = null;
             };
 
             productImage.src = url;
@@ -267,11 +236,10 @@
         // 🔹 Check if image exists (HEAD request)
         async function checkImage(url, signal) {
             try {
-                // Pass signal for cancellation
                 const res = await fetch(url, { method: "HEAD", signal });
                 return res.ok;
             } catch (e) {
-                if (e.name === 'AbortError') throw e; // Re-throw cancellation error
+                if (e.name === 'AbortError') throw e;
                 return false;
             }
         }
