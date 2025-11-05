@@ -5,29 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Blogger SKU Image Lookup</title>
 
-  <!-- Tailwind (CDN) -->
+  <!-- ✅ Tailwind CSS (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- html5-qrcode -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
 
   <style>
-    body { font-family: Inter, sans-serif; background:#f7f7f7; }
-    #reader { max-width:100%; height:300px; border-radius:.5rem; overflow:hidden; position:relative; background:#000; }
-    .scanner-line { position:absolute; left:0; width:100%; height:2px; background:linear-gradient(to right,transparent,#10b981,transparent); animation:scan-move 2s infinite alternate ease-in-out; z-index:10; }
-    @keyframes scan-move { 0%{ top:0% } 100%{ top:98% } }
+    body { font-family: 'Inter', sans-serif; background: #f7f7f7; }
+    #reader { max-width: 100%; height: 300px; border-radius: .5rem; overflow: hidden; position: relative; background: #000; }
+    .scanner-line { position: absolute; left: 0; width: 100%; height: 2px;
+      background: linear-gradient(to right, transparent, #10b981, transparent);
+      animation: scan-move 2s infinite alternate ease-in-out; z-index: 10; }
+    @keyframes scan-move { 0% { top: 0% } 100% { top: 98% } }
   </style>
 </head>
+
 <body class="p-4 sm:p-8 min-h-screen flex items-start justify-center">
   <div id="app-container" class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
+
     <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
     <p class="text-gray-500 mb-6">Scan a barcode or manually enter a SKU to view the product image.</p>
 
+    <!-- Scanner Button and View -->
     <div id="scannerContainer" class="mb-8 transition duration-300">
       <button id="scanButton" onclick="toggleScanner()" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 active:scale-95 transform mb-4">
         <span id="scanButtonText">Start Barcode Scan</span>
       </button>
 
-      <div id="reader" style="display:none;">
+      <div id="reader" style="display: none;">
         <div id="scanner-line" class="scanner-line hidden"></div>
         <div id="scanner-prompt" class="absolute inset-0 flex items-center justify-center text-white text-sm opacity-50 z-20 pointer-events-none">
           Place Barcode/QR Code in View
@@ -35,25 +38,42 @@
       </div>
     </div>
 
+    <!-- Manual SKU Input -->
     <div class="flex flex-col sm:flex-row gap-4 mb-8">
-      <input type="text" id="skuInput" placeholder="Enter SKU (e.g., XLH50880A)" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 focus:border-blue-500 uppercase tracking-widest text-lg font-medium shadow-sm transition" onkeypress="if(event.key === 'Enter') { fetchImage(); }">
-      <button id="lookupButton" onclick="fetchImage()" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 active:scale-95 transform disabled:opacity-50">Lookup Image</button>
+      <input type="text" id="skuInput" placeholder="Enter SKU (e.g., XLH50880A)"
+        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 focus:border-blue-500 uppercase tracking-widest text-lg font-medium shadow-sm transition"
+        onkeypress="if(event.key === 'Enter') { fetchImage(); }">
+      <button id="lookupButton" onclick="fetchImage()"
+        class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 active:scale-95 transform disabled:opacity-50">
+        Lookup Image
+      </button>
     </div>
 
+    <!-- Image Display -->
     <div id="imageDisplay" class="mt-8">
       <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
       <div id="imageContainer" class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
-        <img id="productImage" src="" alt="Product Image" class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0" onerror="handleImageError(this)" onload="this.classList.remove('opacity-0')">
-        <div id="placeholder" class="text-gray-400 text-center transition-opacity duration-300" style="display:block;">Enter a SKU or scan a barcode to search for an image.</div>
+        <img id="productImage" src="" alt="Product Image"
+          class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
+          onerror="handleImageError(this)"
+          onload="this.classList.remove('opacity-0')">
+        <div id="placeholder" class="text-gray-400 text-center transition-opacity duration-300" style="display: block;">
+          Enter a SKU or scan a barcode to search for an image.
+        </div>
       </div>
     </div>
 
     <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
   </div>
 
+  <!-- ✅ Html5-Qrcode Library (MUST load before your JS) -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
+
+  <!-- ✅ Your JavaScript -->
   <script>
     const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
     const IMAGE_SUFFIX = '/1.jpg';
+
     const SKU_INPUT = document.getElementById('skuInput');
     const PRODUCT_IMAGE = document.getElementById('productImage');
     const PLACEHOLDER = document.getElementById('placeholder');
@@ -68,7 +88,9 @@
     let isScanning = false;
 
     function initScanner() {
-      if (html5QrcodeScanner === null) html5QrcodeScanner = new Html5Qrcode("reader");
+      if (html5QrcodeScanner === null) {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+      }
     }
 
     function onScanSuccess(decodedText) {
@@ -76,33 +98,33 @@
       const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
       SKU_INPUT.value = cleanedSku;
       fetchImage();
-      STATUS_MESSAGE.textContent = `✅ Scanned code: ${decodedText}. Looking up image...`;
+      STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
     }
 
     async function startScanner() {
       initScanner();
       STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+
       try {
-        // Explicitly request camera permission (this triggers browser popup)
+        // 🔹 Explicitly ask for permission
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        // Immediately stop the temporary stream so the scanner can take it
         stream.getTracks().forEach(track => track.stop());
 
-        // Get list of cameras
         const videoDevices = await Html5Qrcode.getCameras();
-        if (!videoDevices || !videoDevices.length) {
-          STATUS_MESSAGE.textContent = 'No camera found on this device.';
+        if (!videoDevices.length) {
+          STATUS_MESSAGE.textContent = 'No camera found.';
           return;
         }
 
-        // Prefer back camera if available
         let cameraId = videoDevices[0].id;
-        const backCam = videoDevices.find(d => (d.label||'').toLowerCase().includes('back') || (d.label||'').toLowerCase().includes('environment'));
+        const backCam = videoDevices.find(d =>
+          (d.label || '').toLowerCase().includes('back') ||
+          (d.label || '').toLowerCase().includes('environment')
+        );
         if (backCam) cameraId = backCam.id;
 
         const config = { fps: 10, qrbox: { width: 250, height: 150 } };
 
-        // UI updates
         READER_DIV.style.display = 'block';
         SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
         SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
@@ -110,9 +132,9 @@
         SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
         SCANNER_LINE.classList.remove('hidden');
         isScanning = true;
-        STATUS_MESSAGE.textContent = 'Scanning active...';
 
         await html5QrcodeScanner.start(cameraId, config, onScanSuccess, () => {});
+        STATUS_MESSAGE.textContent = 'Scanning...';
       } catch (err) {
         STATUS_MESSAGE.textContent = 'Camera access denied or unavailable.';
         console.error('Camera Start Error:', err);
@@ -148,10 +170,12 @@
       PRODUCT_IMAGE.removeAttribute('src');
       PLACEHOLDER.textContent = 'Searching...';
       PLACEHOLDER.style.display = 'block';
+
       if (!sku) {
         PLACEHOLDER.textContent = 'Please enter a SKU.';
         return;
       }
+
       const imageUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
       PRODUCT_IMAGE.src = imageUrl;
       PLACEHOLDER.style.display = 'none';
@@ -161,16 +185,10 @@
     function handleImageError(img) {
       img.removeAttribute('src');
       img.classList.add('opacity-0');
-      PLACEHOLDER.textContent = 'Image Not Found. Please check the SKU.';
+      PLACEHOLDER.textContent = 'Image not found. Check SKU.';
       PLACEHOLDER.style.display = 'block';
-      STATUS_MESSAGE.textContent = `Error: Could not load image for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
+      STATUS_MESSAGE.textContent = `❌ Image not found for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
     }
-
-    window.onload = () => {
-      PRODUCT_IMAGE.classList.add('opacity-0');
-      PLACEHOLDER.style.display = 'block';
-      PLACEHOLDER.textContent = 'Enter a SKU or scan a barcode to search for an image.';
-    };
   </script>
 </body>
 </html>
