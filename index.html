@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FabAlley SKU Scanner</title>
 
-  <!-- Tailwind for styling -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    body { background: #f4f7fb; font-family: 'Inter', sans-serif; }
+    body { background: #f5f8fc; font-family: 'Inter', sans-serif; }
     #video-container { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
     .scan-box {
       position: absolute;
@@ -62,7 +61,6 @@
     </div>
   </div>
 
-  <!-- Include Quagga -->
   <script src="quagga.min.js"></script>
 
   <script>
@@ -76,8 +74,11 @@
     const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
     const IMAGE_SUFFIX = "/1.jpg";
 
+    let lastScanned = "";
     let isScanning = false;
+    let isLoading = false;
 
+    // 🔹 Start Scanner
     async function startScanner() {
       if (isScanning) return;
       const granted = await ensureCameraAccess();
@@ -116,6 +117,7 @@
       Quagga.onDetected(onDetected);
     }
 
+    // 🔹 Ensure camera permission
     async function ensureCameraAccess() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -128,6 +130,7 @@
       }
     }
 
+    // 🔹 Stop Scanner
     function stopScanner() {
       if (!isScanning) return;
       Quagga.stop();
@@ -137,37 +140,51 @@
       statusMsg.textContent = "Scanner stopped.";
     }
 
-    function onDetected(result) {
+    // 🔹 Handle Detected Barcode (continuous)
+    async function onDetected(result) {
       const code = result.codeResult.code.trim().toUpperCase();
-      console.log("Scanned:", code);
-      stopScanner();
-      skuInput.value = code;
-      fetchImage();
+
+      if (code === lastScanned || isLoading) return; // avoid duplicates
+      lastScanned = code;
       statusMsg.textContent = `✅ SKU Detected: ${code}`;
+      skuInput.value = code;
+
+      await fetchImage(code);
     }
 
-    async function fetchImage() {
-      const sku = skuInput.value.trim().toUpperCase();
-      if (!sku) return;
+    // 🔹 Fetch image with fast A–Z logic
+    async function fetchImage(sku) {
+      isLoading = true;
       placeholder.style.display = "none";
       productImage.classList.add("opacity-0");
       statusMsg.textContent = `Loading image for ${sku}...`;
 
+      const urls = [];
       const exactUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-      if (await checkImage(exactUrl)) return showImage(exactUrl, sku);
+      urls.push(exactUrl);
 
       const base = sku.slice(0, -1);
       const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       for (const ch of letters) {
-        const altUrl = `${IMAGE_BASE_URL}${base}${ch}${IMAGE_SUFFIX}`;
-        if (await checkImage(altUrl)) return showImage(altUrl, base + ch);
+        urls.push(`${IMAGE_BASE_URL}${base}${ch}${IMAGE_SUFFIX}`);
+      }
+
+      for (const url of urls) {
+        const found = await checkImage(url);
+        if (found) {
+          showImage(url, sku);
+          isLoading = false;
+          return;
+        }
       }
 
       statusMsg.textContent = "⚠️ No image found.";
       placeholder.style.display = "block";
       placeholder.textContent = "Image not found.";
+      isLoading = false;
     }
 
+    // 🔹 Show image
     function showImage(url, sku) {
       productImage.src = url;
       productImage.onload = () => {
@@ -177,6 +194,7 @@
       };
     }
 
+    // 🔹 Check if image exists (HEAD fast)
     async function checkImage(url) {
       try {
         const res = await fetch(url, { method: "HEAD" });
@@ -186,9 +204,14 @@
       }
     }
 
+    // 🔹 Manual lookup
+    document.getElementById("lookupBtn").addEventListener("click", async () => {
+      const sku = skuInput.value.trim().toUpperCase();
+      if (sku) await fetchImage(sku);
+    });
+
     startBtn.addEventListener("click", startScanner);
     stopBtn.addEventListener("click", stopScanner);
-    document.getElementById("lookupBtn").addEventListener("click", fetchImage);
   </script>
 </body>
 </html>
