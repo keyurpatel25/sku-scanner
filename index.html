@@ -7,41 +7,63 @@
   <style>
     body {
       font-family: Arial, sans-serif;
+      background: #f4f6f8;
       text-align: center;
+      margin: 0;
       padding: 20px;
-      background: #f8f9fa;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 15px;
+    }
+    #video-container {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
     video {
       width: 100%;
-      max-width: 480px;
-      border: 2px solid #333;
-      border-radius: 10px;
+      height: auto;
+      display: block;
     }
     #result {
-      font-size: 24px;
+      margin-top: 15px;
+      font-size: 22px;
       font-weight: bold;
-      margin-top: 20px;
       color: #007bff;
     }
     button {
-      margin-top: 15px;
+      margin-top: 20px;
       padding: 10px 20px;
       font-size: 18px;
-      cursor: pointer;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       background-color: #007bff;
-      color: white;
+      color: #fff;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
 <body>
 
-  <h2>SKU Barcode Scanner</h2>
-  <video id="video"></video>
-  <div id="result">Scan a barcode...</div>
-  <button id="startBtn">Start Scanner</button>
-  <button id="stopBtn" style="display:none;">Stop Scanner</button>
+  <h1>SKU Barcode Scanner</h1>
+  <div id="video-container">
+    <video id="video" autoplay muted playsinline></video>
+  </div>
+  <div id="result">Click "Start Scanner" to begin</div>
+  <div>
+    <button id="startBtn">Start Scanner</button>
+    <button id="stopBtn" style="display:none;">Stop Scanner</button>
+  </div>
 
   <!-- Load QuaggaJS -->
   <script src="quagga.min.js"></script>
@@ -50,53 +72,88 @@
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const result = document.getElementById('result');
+    const videoElem = document.getElementById('video');
+
+    let isRunning = false;
 
     startBtn.addEventListener('click', startScanner);
     stopBtn.addEventListener('click', stopScanner);
 
-    function startScanner() {
-      startBtn.style.display = 'none';
-      stopBtn.style.display = 'inline-block';
-      result.textContent = "Initializing camera...";
+    async function requestCameraAccess() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        videoElem.srcObject = stream;
+        return true;
+      } catch (err) {
+        console.error("Camera access denied:", err);
+        result.textContent = "Camera access denied. Please allow camera permission.";
+        return false;
+      }
+    }
+
+    async function startScanner() {
+      if (isRunning) return;
+      const allowed = await requestCameraAccess();
+      if (!allowed) return;
+
+      result.textContent = "Initializing scanner...";
+      startBtn.style.display = "none";
+      stopBtn.style.display = "inline-block";
 
       Quagga.init({
         inputStream: {
+          name: "Live",
           type: "LiveStream",
-          target: document.querySelector('video'),
+          target: document.querySelector("#video"),
           constraints: {
-            facingMode: "environment" // rear camera
+            facingMode: "environment",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
           }
         },
         decoder: {
-          readers: ["code_128_reader", "code_39_reader"], // Support alphanumeric barcodes
+          readers: ["code_128_reader", "code_39_reader"],
           multiple: false
         },
         locate: true
-      }, function (err) {
+      }, (err) => {
         if (err) {
           console.error("Quagga init error:", err);
-          result.textContent = "Camera access failed.";
-          startBtn.style.display = 'inline-block';
-          stopBtn.style.display = 'none';
+          result.textContent = "Failed to start camera.";
+          startBtn.style.display = "inline-block";
+          stopBtn.style.display = "none";
           return;
         }
         Quagga.start();
-        result.textContent = "Scanning for SKU...";
+        isRunning = true;
+        result.textContent = "Scanning... Hold barcode steady.";
       });
 
-      // When a barcode is detected
-      Quagga.onDetected(function (data) {
-        const code = data.codeResult.code;
-        console.log("Detected:", code);
-        result.textContent = "SKU: " + code;
-        stopScanner(); // stop after one scan
-      });
+      Quagga.onDetected(onDetected);
+    }
+
+    function onDetected(data) {
+      const code = data.codeResult.code.trim();
+      console.log("Detected:", code);
+      result.textContent = "✅ SKU: " + code;
+      stopScanner();
     }
 
     function stopScanner() {
+      if (!isRunning) return;
       Quagga.stop();
-      startBtn.style.display = 'inline-block';
-      stopBtn.style.display = 'none';
+      const stream = videoElem.srcObject;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        videoElem.srcObject = null;
+      }
+      isRunning = false;
+      startBtn.style.display = "inline-block";
+      stopBtn.style.display = "none";
+      result.textContent += " (Scanner stopped)";
     }
   </script>
 
