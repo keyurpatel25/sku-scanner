@@ -21,7 +21,7 @@
         Status: Click the button and watch the address bar for a camera icon.
     </p>
 
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
 
     <script>
         window.addEventListener("DOMContentLoaded", () => {
@@ -39,7 +39,8 @@
                 }
                 
                 if (!html5QrcodeScanner) {
-                    STATUS_MESSAGE.textContent = 'Error: Scanner library not ready.';
+                    // This error should now only occur if the library failed to download
+                    STATUS_MESSAGE.textContent = 'Error: Scanner library not ready (check console network errors).';
                     return;
                 }
 
