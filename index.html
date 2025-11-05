@@ -21,13 +21,14 @@
             border: 2px solid #22c55e; /* Green Border */
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(34,197,94,0.6);
+            z-index: 10; /* Ensure box is above camera feed */
         }
         .scan-line {
             position: absolute;
             width: 100%; height: 2px;
             top: 0;
             background: linear-gradient(to right, transparent, #22c55e, transparent);
-            animation: scan-move 2s infinite alternate;
+            animation: scan-move 1.5s infinite alternate; /* Faster animation */
         }
         @keyframes scan-move { 0% { top: 0; } 100% { top: calc(100% - 2px); } }
     </style>
@@ -81,13 +82,12 @@
         let lastScanned = "";
         let isScanning = false;
         let isLoading = false;
-        let currentAbortController = null; // Key: For cancelling fetch requests
-        let detectionTimeout = null;      // Key: For debouncing scan results
+        let currentAbortController = null; // For cancelling fetch requests
+        let detectionTimeout = null;      // For debouncing scan results
 
         // --- UTILITY FUNCTIONS ---
 
-        /** * Resets the UI state for the product image display.
-         */
+        /** * Resets the UI state for the product image display. */
         function resetUI() {
             productImage.classList.add("opacity-0");
             productImage.removeAttribute("src");
@@ -111,13 +111,26 @@
                     type: "LiveStream",
                     constraints: {
                         facingMode: "environment",
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        // OPTIMIZATION: Lower resolution for faster frame processing
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
                     },
                     target: document.querySelector("#cameraPreview")
                 },
-                decoder: { readers: ["code_128_reader", "code_39_reader"] },
-                locate: true
+                decoder: { 
+                    // OPTIMIZATION: Use only the necessary decoder for SKUs (Code 128 is common)
+                    readers: ["code_128_reader"] 
+                },
+                locate: true,
+                // OPTIMIZATION: Process 10 frames per second instead of maximum
+                frequency: 10,
+                // OPTIMIZATION: Focus scanning on the center area
+                area: {
+                    top: "20%",
+                    right: "25%",
+                    left: "25%",
+                    bottom: "20%"
+                }
             }, (err) => {
                 if (err) {
                     console.error(err);
@@ -164,7 +177,7 @@
 
             if (code === lastScanned) return;
 
-            // Debounce: Wait a small period to see if the same code is detected again
+            // Debounce: Wait a small period (150ms) to ensure it's the final scan result
             clearTimeout(detectionTimeout);
             detectionTimeout = setTimeout(async () => {
                 lastScanned = code;
@@ -176,7 +189,7 @@
 
         // 🔹 Fetch image with fast A–Z logic
         async function fetchImage(sku) {
-            // Abort previous pending requests to prevent race conditions
+            // RELIABILITY: Abort previous pending requests
             if (currentAbortController) {
                 currentAbortController.abort();
             }
@@ -190,23 +203,26 @@
             statusMsg.textContent = `Loading image for ${sku}...`;
 
             const urls = [];
+            // 1. Exact SKU check
             const exactUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
             urls.push(exactUrl);
 
-            // A-Z Fallback Logic
+            // 2. A-Z Fallback Logic (XMS29756C -> XMS29756A, XMS29756B, etc.)
             const base = sku.slice(0, -1);
             const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             for (const ch of letters) {
+                // Skip the exact match, already checked
+                if (`${base}${ch}` === sku) continue; 
                 urls.push(`${IMAGE_BASE_URL}${base}${ch}${IMAGE_SUFFIX}`);
             }
 
             try {
                 for (const url of urls) {
-                    const found = await checkImage(url, signal);
+                    const found = await checkImage(url, signal); // Fast HEAD check
                     if (found) {
-                        showImage(url, sku);
+                        showImage(url, sku); // Immediately sets src and loads image
                         isLoading = false;
-                        return;
+                        return; // FOUND IMAGE: Skip all other checks and exit
                     }
                 }
 
@@ -218,7 +234,7 @@
             } catch (error) {
                 if (error.name === 'AbortError') {
                     statusMsg.textContent = "Image search cancelled.";
-                    return; // Normal operation for cancellation
+                    return; 
                 }
                 console.error("Fetch error:", error);
                 statusMsg.textContent = "Image lookup failed (Network error).";
