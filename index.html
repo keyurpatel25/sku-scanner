@@ -3,174 +3,103 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fast SKU Barcode Scanner</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Fast Barcode Scanner (QuaggaJS)</title>
   <style>
-    body { font-family: Inter, sans-serif; background: #f7f7f7; }
-    #reader { max-width: 100%; height: 300px; border-radius: .5rem; background: #000; overflow: hidden; position: relative; }
-    .scanner-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(to right, transparent, #10b981, transparent); animation: scan-move 2s infinite alternate ease-in-out; z-index: 10; }
-    @keyframes scan-move { 0% { top: 0%; } 100% { top: 98%; } }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111;
+      text-align: center;
+      padding: 20px;
+    }
+    video {
+      width: 100%;
+      max-width: 480px;
+      border: 2px solid #333;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #2563eb;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
   </style>
 </head>
+<body>
+  <h1>📷 Fast Barcode Scanner</h1>
+  <p>Align the barcode inside the box to scan.</p>
 
-<body class="p-4 sm:p-8 min-h-screen flex items-start justify-center">
-  <div class="w-full max-w-xl bg-white shadow-xl rounded-xl p-6 md:p-8 border border-gray-100">
-    <h1 class="text-3xl font-bold text-gray-800 mb-2">Fast Product SKU Scanner</h1>
-    <p class="text-gray-500 mb-6">Scan a barcode or enter a SKU manually. Finds image (A–Z fallback).</p>
-
-    <button id="startScanBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 mb-4">
-      Start Barcode Scan
-    </button>
-
-    <div id="reader" style="display:none;">
-      <div class="scanner-line"></div>
-    </div>
-
-    <div class="mt-6 flex flex-col sm:flex-row gap-4">
-      <input id="skuInput" type="text" placeholder="Enter SKU"
-        class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 uppercase tracking-widest text-lg font-medium shadow-sm transition">
-      <button id="lookupBtn"
-        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200">
-        Lookup Image
-      </button>
-    </div>
-
-    <div class="mt-8">
-      <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
-      <div class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
-        <img id="productImage" src="" alt="Product Image"
-          class="w-full h-full object-contain rounded-lg transition-opacity duration-300 opacity-0"
-          onload="this.classList.remove('opacity-0')">
-        <div id="placeholder" class="text-gray-400 text-center">Enter or scan a SKU to view image.</div>
-      </div>
-    </div>
-
-    <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500"></p>
+  <div id="scanner-container">
+    <video id="video" autoplay playsinline></video>
   </div>
 
-  <!-- html5-qrcode (local copy recommended for GitHub Pages) -->
-  <script src="js/html5-qrcode.min.js"></script>
+  <button id="startButton">Start Scanner</button>
+  <div id="result">No barcode detected yet...</div>
+
+  <!-- Load local QuaggaJS -->
+  <script src="quagga.min.js"></script>
 
   <script>
-    function initScannerApp() {
-      const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
-      const IMAGE_SUFFIX = "/3.jpg";
+    const startButton = document.getElementById("startButton");
+    const resultEl = document.getElementById("result");
 
-      const startBtn = document.getElementById("startScanBtn");
-      const lookupBtn = document.getElementById("lookupBtn");
-      const productImage = document.getElementById("productImage");
-      const placeholder = document.getElementById("placeholder");
-      const statusMsg = document.getElementById("statusMessage");
-      const skuInput = document.getElementById("skuInput");
-      const readerDiv = document.getElementById("reader");
+    startButton.addEventListener("click", () => {
+      startButton.disabled = true;
+      startButton.textContent = "Starting camera...";
 
-      let html5Scanner = null;
-      let isScanning = false;
-
-      // ✅ Request camera permission only once
-      async function requestCameraPermission() {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach(t => t.stop());
-          return true;
-        } catch (err) {
-          alert("Camera access denied or unavailable.");
-          console.error(err);
-          return false;
-        }
-      }
-
-      async function startScan() {
-        const allowed = await requestCameraPermission();
-        if (!allowed) return;
-
-        if (!html5Scanner) html5Scanner = new Html5Qrcode("reader");
-        readerDiv.style.display = "block";
-        statusMsg.textContent = "📷 Scanning...";
-
-        try {
-          const devices = await Html5Qrcode.getCameras();
-          if (!devices.length) {
-            alert("No camera found.");
+      // Initialize Quagga
+      Quagga.init(
+        {
+          inputStream: {
+            type: "LiveStream",
+            target: document.querySelector("#scanner-container"),
+            constraints: {
+              facingMode: "environment", // rear camera
+            },
+          },
+          decoder: {
+            readers: ["code_128_reader", "code_39_reader", "ean_reader"], // support for common 1D codes
+          },
+        },
+        function (err) {
+          if (err) {
+            console.error(err);
+            alert("Camera init error: " + err.message);
+            startButton.disabled = false;
+            startButton.textContent = "Start Scanner";
             return;
           }
-
-          let cameraId = devices[0].id;
-          const backCam = devices.find(d =>
-            (d.label || '').toLowerCase().includes('back') ||
-            (d.label || '').toLowerCase().includes('environment')
-          );
-          if (backCam) cameraId = backCam.id;
-
-          isScanning = true;
-          await html5Scanner.start(cameraId, { fps: 10, qrbox: { width: 250, height: 150 } }, onScanSuccess);
-        } catch (err) {
-          console.error("Error starting scan:", err);
-          alert("Could not start scanning.");
+          Quagga.start();
+          startButton.textContent = "Scanning...";
+          console.log("Quagga started");
         }
-      }
+      );
 
-      function stopScan() {
-        if (isScanning && html5Scanner) {
-          html5Scanner.stop().catch(console.error);
-          isScanning = false;
-          readerDiv.style.display = "none";
-          statusMsg.textContent = "Scanner stopped.";
-        }
-      }
+      // Listen for detected barcodes
+      Quagga.onDetected((data) => {
+        const code = data.codeResult.code;
+        resultEl.textContent = "✅ Detected Barcode: " + code;
 
-      function onScanSuccess(decodedText) {
-        stopScan();
-        const cleaned = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
-        skuInput.value = cleaned;
-        fetchImageParallel(cleaned);
-        statusMsg.textContent = `✅ Scanned: ${cleaned}`;
-      }
-
-      function handleImageError() {
-        productImage.src = "";
-        productImage.classList.add("opacity-0");
-        placeholder.style.display = "block";
-        placeholder.textContent = "Image not found.";
-        statusMsg.textContent = "⚠️ Image not found.";
-      }
-
-      // ✅ Optimized: try all A-Z in parallel, stop on first success
-      async function fetchImageParallel(baseSku) {
-        placeholder.style.display = "none";
-        productImage.classList.add("opacity-0");
-        productImage.src = "";
-        statusMsg.textContent = `Checking SKU: ${baseSku}...`;
-
-        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-        const variants = [baseSku, ...letters.map(l => baseSku.slice(0, -1) + l)];
-        const urls = variants.map(v => `${IMAGE_BASE_URL}${v}${IMAGE_SUFFIX}`);
-
-        const imageCheck = urls.map(url =>
-          new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(url);
-            img.onerror = () => reject();
-            img.src = url;
-          })
-        );
-
-        try {
-          const foundUrl = await Promise.any(imageCheck); // resolves on first success
-          productImage.src = foundUrl;
-          placeholder.style.display = "none";
-          statusMsg.textContent = `✅ Found image for ${baseSku}`;
-        } catch {
-          handleImageError();
-        }
-      }
-
-      startBtn.addEventListener("click", () => isScanning ? stopScan() : startScan());
-      lookupBtn.addEventListener("click", () => fetchImageParallel(skuInput.value.trim().toUpperCase()));
-      window.handleImageError = handleImageError;
-    }
-
-    window.onload = initScannerApp;
+        // Stop scanning after first detection
+        Quagga.stop();
+        startButton.disabled = false;
+        startButton.textContent = "Start Again";
+      });
+    });
   </script>
 </body>
 </html>
