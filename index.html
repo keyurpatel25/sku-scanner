@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FabAlley SKU Scanner (ZXing)</title>
+    <title>FabAlley SKU Scanner (ZXing Code 39/128)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -12,13 +12,13 @@
         body { background: #f5f8fc; font-family: 'Inter', sans-serif; }
         #video-container { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
         
-        /* ZXing doesn't use the canvas drawing features of Quagga, but we keep the visual box */
+        /* Visual scanning box */
         .scan-box {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             width: 250px; height: 150px;
-            border: 2px solid #22c55e; /* Green Border */
+            border: 2px solid #22c55e;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(34,197,94,0.6);
             z-index: 10;
@@ -68,7 +68,6 @@
     <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <script>
-        // Aliases for ZXing
         const { BrowserCodeReader, DecodeHintType, BarcodeFormat } = ZXing;
 
         const skuInput = document.getElementById("skuInput");
@@ -83,13 +82,13 @@
         const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
         const IMAGE_SUFFIX = "/1.jpg";
 
-        let codeReader; // Global variable for ZXing reader
+        let codeReader; 
         let lastScanned = "";
         let isScanning = false;
         let isLoading = false;
         let currentAbortController = null;
 
-        // --- UTILITY FUNCTIONS ---
+        // --- UTILITY FUNCTIONS (Unchanged from previous fast version) ---
 
         function resetUI() {
             productImage.classList.add("opacity-0");
@@ -108,24 +107,20 @@
             stopBtn.classList.remove("hidden");
 
             try {
-                // ZXing setup
+                // 🔑 KEY CHANGE: Configure ZXing to look for Code 39 AND Code 128
                 const hints = new Map();
-                // We only want Code 128 (most common retail/SKU barcode)
-                hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]);
+                hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
                 
-                // Initialize the code reader
                 codeReader = new BrowserCodeReader(hints);
                 
-                // Start decoding from the environment camera
                 codeReader.decodeFromVideoDevice(null, videoElement, (result, error) => {
                     if (result) {
                         onDetected(result.text.trim().toUpperCase());
                     }
-                    // Handle error if needed (e.g., if the camera stream stops)
                 });
 
                 isScanning = true;
-                statusMsg.textContent = "📷 Scanning barcode (ZXing)...";
+                statusMsg.textContent = "📷 Scanning barcode (Code 39 & 128)...";
             } catch (err) {
                 console.error(err);
                 alert("Failed to start camera: " + err);
@@ -135,12 +130,12 @@
             }
         }
 
-        // 🔹 Stop Scanner (using ZXing)
+        // 🔹 Stop Scanner
         function stopScanner() {
             if (!isScanning) return;
             
             if (codeReader) {
-                codeReader.reset(); // Stop the camera stream and decoding
+                codeReader.reset();
             }
             
             isScanning = false;
@@ -150,7 +145,6 @@
         }
 
         // 🔹 Handle Detected Barcode 
-        // Note: ZXing is fast, so debouncing might be less critical, but we keep the duplicate check.
         async function onDetected(code) {
             if (code === lastScanned || isLoading) return;
 
@@ -161,7 +155,7 @@
             await fetchImage(code);
         }
 
-        // 🔹 Fetch image with fast A–Z logic (Remains the same, focusing on network speed)
+        // 🔹 Fetch image with fast A–Z logic (Remains the same fast network logic)
         async function fetchImage(sku) {
             if (currentAbortController) {
                 currentAbortController.abort();
@@ -193,7 +187,7 @@
                     if (found) {
                         showImage(url, sku); 
                         isLoading = false;
-                        return; // FOUND IMAGE: Skip all other checks
+                        return; 
                     }
                 }
 
@@ -246,13 +240,11 @@
 
         // --- EVENT LISTENERS ---
 
-        // Manual lookup on button click
         lookupBtn.addEventListener("click", async () => {
             const sku = skuInput.value.trim().toUpperCase();
             if (sku) await fetchImage(sku);
         });
 
-        // Manual lookup on Enter key press
         skuInput.addEventListener("keydown", async (e) => {
             if (e.key === "Enter") {
                 e.preventDefault();
@@ -264,7 +256,6 @@
         startBtn.addEventListener("click", startScanner);
         stopBtn.addEventListener("click", stopScanner);
         
-        // Initial UI state setup
         resetUI();
     </script>
 </body>
