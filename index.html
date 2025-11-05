@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Blogger SKU Image Lookup</title>
+  <title>SKU Scanner for GitHub Pages</title>
 
-  <!-- ✅ Tailwind CSS (CDN) -->
+  <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
@@ -24,9 +24,8 @@
     <h1 class="text-3xl font-bold text-gray-800 mb-2">Product SKU Scanner</h1>
     <p class="text-gray-500 mb-6">Scan a barcode or manually enter a SKU to view the product image.</p>
 
-    <!-- Scanner Button and View -->
     <div id="scannerContainer" class="mb-8 transition duration-300">
-      <button id="scanButton" onclick="toggleScanner()" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 active:scale-95 transform mb-4">
+      <button id="scanButton" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 active:scale-95 transform mb-4">
         <span id="scanButtonText">Start Barcode Scan</span>
       </button>
 
@@ -38,18 +37,16 @@
       </div>
     </div>
 
-    <!-- Manual SKU Input -->
     <div class="flex flex-col sm:flex-row gap-4 mb-8">
       <input type="text" id="skuInput" placeholder="Enter SKU (e.g., XLH50880A)"
         class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-500/50 focus:border-blue-500 uppercase tracking-widest text-lg font-medium shadow-sm transition"
         onkeypress="if(event.key === 'Enter') { fetchImage(); }">
-      <button id="lookupButton" onclick="fetchImage()"
+      <button id="lookupButton"
         class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 active:scale-95 transform disabled:opacity-50">
         Lookup Image
       </button>
     </div>
 
-    <!-- Image Display -->
     <div id="imageDisplay" class="mt-8">
       <h2 class="text-xl font-semibold text-gray-700 mb-4">Product Preview:</h2>
       <div id="imageContainer" class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-4">
@@ -66,129 +63,139 @@
     <p id="statusMessage" class="mt-4 text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
   </div>
 
-  <!-- ✅ Html5-Qrcode Library (MUST load before your JS) -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
+  <!-- ✅ Load html5-qrcode AFTER the HTML -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js" defer></script>
 
-  <!-- ✅ Your JavaScript -->
+  <!-- ✅ Main Script -->
   <script>
-    const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
-    const IMAGE_SUFFIX = '/1.jpg';
+    window.addEventListener("DOMContentLoaded", () => {
 
-    const SKU_INPUT = document.getElementById('skuInput');
-    const PRODUCT_IMAGE = document.getElementById('productImage');
-    const PLACEHOLDER = document.getElementById('placeholder');
-    const STATUS_MESSAGE = document.getElementById('statusMessage');
-    const READER_DIV = document.getElementById('reader');
-    const SCAN_BUTTON = document.getElementById('scanButton');
-    const SCAN_BUTTON_TEXT = document.getElementById('scanButtonText');
-    const SCANNER_CONTAINER = document.getElementById('scannerContainer');
-    const SCANNER_LINE = document.getElementById('scanner-line');
+      const IMAGE_BASE_URL = 'https://img.faballey.com/images/Product/';
+      const IMAGE_SUFFIX = '/1.jpg';
 
-    let html5QrcodeScanner = null;
-    let isScanning = false;
+      const SKU_INPUT = document.getElementById('skuInput');
+      const PRODUCT_IMAGE = document.getElementById('productImage');
+      const PLACEHOLDER = document.getElementById('placeholder');
+      const STATUS_MESSAGE = document.getElementById('statusMessage');
+      const READER_DIV = document.getElementById('reader');
+      const SCAN_BUTTON = document.getElementById('scanButton');
+      const SCAN_BUTTON_TEXT = document.getElementById('scanButtonText');
+      const SCANNER_CONTAINER = document.getElementById('scannerContainer');
+      const SCANNER_LINE = document.getElementById('scanner-line');
 
-    function initScanner() {
-      if (html5QrcodeScanner === null) {
-        html5QrcodeScanner = new Html5Qrcode("reader");
+      let html5QrcodeScanner = null;
+      let isScanning = false;
+
+      function initScanner() {
+        if (html5QrcodeScanner === null && window.Html5Qrcode) {
+          html5QrcodeScanner = new Html5Qrcode("reader");
+        }
       }
-    }
 
-    function onScanSuccess(decodedText) {
-      stopScanner();
-      const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
-      SKU_INPUT.value = cleanedSku;
-      fetchImage();
-      STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
-    }
+      function onScanSuccess(decodedText) {
+        stopScanner();
+        const cleanedSku = decodedText.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+        SKU_INPUT.value = cleanedSku;
+        fetchImage();
+        STATUS_MESSAGE.textContent = `✅ Scanned: ${decodedText}. Fetching image...`;
+      }
 
-    async function startScanner() {
-      initScanner();
-      STATUS_MESSAGE.textContent = 'Requesting camera permission...';
+      async function startScanner() {
+        initScanner();
+        STATUS_MESSAGE.textContent = 'Requesting camera permission...';
 
-      try {
-        // 🔹 Explicitly ask for permission
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(track => track.stop());
-
-        const videoDevices = await Html5Qrcode.getCameras();
-        if (!videoDevices.length) {
-          STATUS_MESSAGE.textContent = 'No camera found.';
+        if (!window.Html5Qrcode) {
+          STATUS_MESSAGE.textContent = 'Error: Html5Qrcode library not loaded.';
           return;
         }
 
-        let cameraId = videoDevices[0].id;
-        const backCam = videoDevices.find(d =>
-          (d.label || '').toLowerCase().includes('back') ||
-          (d.label || '').toLowerCase().includes('environment')
-        );
-        if (backCam) cameraId = backCam.id;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(track => track.stop());
 
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+          const videoDevices = await Html5Qrcode.getCameras();
+          if (!videoDevices.length) {
+            STATUS_MESSAGE.textContent = 'No camera found.';
+            return;
+          }
 
-        READER_DIV.style.display = 'block';
-        SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
-        SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
-        SCAN_BUTTON.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
-        SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
-        SCANNER_LINE.classList.remove('hidden');
-        isScanning = true;
+          let cameraId = videoDevices[0].id;
+          const backCam = videoDevices.find(d =>
+            (d.label || '').toLowerCase().includes('back') ||
+            (d.label || '').toLowerCase().includes('environment')
+          );
+          if (backCam) cameraId = backCam.id;
 
-        await html5QrcodeScanner.start(cameraId, config, onScanSuccess, () => {});
-        STATUS_MESSAGE.textContent = 'Scanning...';
-      } catch (err) {
-        STATUS_MESSAGE.textContent = 'Camera access denied or unavailable.';
-        console.error('Camera Start Error:', err);
-        stopScanner(false);
-      }
-    }
+          const config = { fps: 10, qrbox: { width: 250, height: 150 } };
 
-    function stopScanner(tryStop = true) {
-      if (isScanning) {
-        if (tryStop && html5QrcodeScanner) {
-          html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
+          READER_DIV.style.display = 'block';
+          SCANNER_CONTAINER.classList.add('bg-gray-800', 'rounded-lg', 'p-2');
+          SCAN_BUTTON.classList.replace('bg-green-600', 'bg-red-600');
+          SCAN_BUTTON.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
+          SCAN_BUTTON_TEXT.textContent = 'Stop Scan';
+          SCANNER_LINE.classList.remove('hidden');
+          isScanning = true;
+
+          await html5QrcodeScanner.start(cameraId, config, onScanSuccess, () => {});
+          STATUS_MESSAGE.textContent = 'Scanning...';
+        } catch (err) {
+          STATUS_MESSAGE.textContent = 'Camera access denied or unavailable.';
+          console.error('Camera Start Error:', err);
+          stopScanner(false);
         }
-        READER_DIV.style.display = 'none';
-        SCANNER_CONTAINER.classList.remove('bg-gray-800', 'rounded-lg', 'p-2');
-        SCAN_BUTTON.classList.replace('bg-red-600', 'bg-green-600');
-        SCAN_BUTTON.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
-        SCAN_BUTTON_TEXT.textContent = 'Start Barcode Scan';
-        SCANNER_LINE.classList.add('hidden');
-        isScanning = false;
-      }
-    }
-
-    function toggleScanner() {
-      if (isScanning) stopScanner();
-      else startScanner();
-    }
-
-    function fetchImage() {
-      if (isScanning) stopScanner();
-      const sku = SKU_INPUT.value.trim().toUpperCase();
-      STATUS_MESSAGE.textContent = '';
-      PRODUCT_IMAGE.classList.add('opacity-0');
-      PRODUCT_IMAGE.removeAttribute('src');
-      PLACEHOLDER.textContent = 'Searching...';
-      PLACEHOLDER.style.display = 'block';
-
-      if (!sku) {
-        PLACEHOLDER.textContent = 'Please enter a SKU.';
-        return;
       }
 
-      const imageUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-      PRODUCT_IMAGE.src = imageUrl;
-      PLACEHOLDER.style.display = 'none';
-      STATUS_MESSAGE.textContent = `Loading image for SKU: ${sku}`;
-    }
+      function stopScanner(tryStop = true) {
+        if (isScanning) {
+          if (tryStop && html5QrcodeScanner) {
+            html5QrcodeScanner.stop().catch(err => console.error("Stop Error:", err));
+          }
+          READER_DIV.style.display = 'none';
+          SCANNER_CONTAINER.classList.remove('bg-gray-800', 'rounded-lg', 'p-2');
+          SCAN_BUTTON.classList.replace('bg-red-600', 'bg-green-600');
+          SCAN_BUTTON.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
+          SCAN_BUTTON_TEXT.textContent = 'Start Barcode Scan';
+          SCANNER_LINE.classList.add('hidden');
+          isScanning = false;
+        }
+      }
 
-    function handleImageError(img) {
-      img.removeAttribute('src');
-      img.classList.add('opacity-0');
-      PLACEHOLDER.textContent = 'Image not found. Check SKU.';
-      PLACEHOLDER.style.display = 'block';
-      STATUS_MESSAGE.textContent = `❌ Image not found for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
-    }
+      function toggleScanner() {
+        if (isScanning) stopScanner();
+        else startScanner();
+      }
+
+      function fetchImage() {
+        if (isScanning) stopScanner();
+        const sku = SKU_INPUT.value.trim().toUpperCase();
+        STATUS_MESSAGE.textContent = '';
+        PRODUCT_IMAGE.classList.add('opacity-0');
+        PRODUCT_IMAGE.removeAttribute('src');
+        PLACEHOLDER.textContent = 'Searching...';
+        PLACEHOLDER.style.display = 'block';
+
+        if (!sku) {
+          PLACEHOLDER.textContent = 'Please enter a SKU.';
+          return;
+        }
+
+        const imageUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
+        PRODUCT_IMAGE.src = imageUrl;
+        PLACEHOLDER.style.display = 'none';
+        STATUS_MESSAGE.textContent = `Loading image for SKU: ${sku}`;
+      }
+
+      function handleImageError(img) {
+        img.removeAttribute('src');
+        img.classList.add('opacity-0');
+        PLACEHOLDER.textContent = 'Image not found. Check SKU.';
+        PLACEHOLDER.style.display = 'block';
+        STATUS_MESSAGE.textContent = `❌ Image not found for SKU: ${SKU_INPUT.value.trim().toUpperCase()}`;
+      }
+
+      SCAN_BUTTON.addEventListener("click", toggleScanner);
+      document.getElementById("lookupButton").addEventListener("click", fetchImage);
+    });
   </script>
 </body>
 </html>
