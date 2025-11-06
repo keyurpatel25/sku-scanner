@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Code 39 Barcode Scanner</title>
+    <!-- Essential for mobile responsiveness -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <style>
@@ -11,14 +12,14 @@
             text-align: center;
             padding: 10px;
             background-color: #f0f2f5;
-            /* New: Center and constrain content for a mobile view on all devices */
+            /* Center and constrain content for a mobile view on all devices */
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
         }
 
-        /* New: Max width to mimic a phone screen on desktop */
+        /* Max width to mimic a phone screen on desktop */
         #mobile-wrapper {
             width: 100%;
             max-width: 600px; /* Standard phone width constraint */
@@ -97,6 +98,7 @@
 </head>
 <body>
 
+    <!-- Wrapper to enforce mobile-like constraint on desktop -->
     <div id="mobile-wrapper">
         <h1>🚀 Code 39 Barcode Scanner</h1>
         <p>This scanner is configured for **Code 39** barcodes only. Other types are ignored.</p>
@@ -112,6 +114,10 @@
     </div>
 
     <script>
+        // --- Global Variables for Debouncing and Scanning ---
+        let lastScannedCode = null; 
+        let scanTimeout = null; 
+
         // --- Image Logic Constants and Elements ---
         const BASE_URL_PREFIX = 'https://img.faballey.com/images/Product/';
         const BASE_URL_SUFFIX = '/1.jpg';
@@ -123,15 +129,12 @@
             const lastChar = sku.slice(-1);
             const prefix = sku.slice(0, -1);
             
-            // If the last character is a letter A-Y, increment it
             if (lastChar >= 'A' && lastChar < 'Z') {
                 const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1);
                 return prefix + nextChar;
             } else if (lastChar === 'Z') {
-                // Stop after Z
                 return null; 
             }
-            // If the last character is a digit or other, start sequence from A
             return prefix + 'A';
         }
 
@@ -143,22 +146,19 @@
             IMAGE_EL.alt = `Checking SKU: ${sku}`;
 
             IMAGE_EL.onload = () => {
-                // Success: Display the found image and stop the check sequence
                 console.log(`Image found for SKU: ${sku}`);
                 IMAGE_EL.style.display = 'block';
                 IMAGE_EL.alt = `Product Image for ${sku}`;
             };
             
             IMAGE_EL.onerror = () => {
-                // Failure: Try the next SKU in the fallback sequence
                 console.warn(`Image failed for SKU: ${sku}`);
                 
                 const nextSku = getNextSku(sku);
                 
                 if (nextSku && nextSku.slice(-1) <= 'Z') {
-                    checkAndDisplayImage(nextSku, originalSku); // Recursive call
+                    checkAndDisplayImage(nextSku, originalSku);
                 } else {
-                    // Exhausted all fallbacks
                     console.error("No valid image found after all fallbacks.");
                     IMAGE_EL.style.display = 'none';
                     IMAGE_EL.alt = "Image not found for any variant.";
@@ -167,29 +167,49 @@
         }
 
 
-        // --- 1. Initialization & Success Handler ---
+        // --- 1. Initialization & Success Handler (Includes Debouncing Logic) ---
         function onScanSuccess(decodedText, decodedResult) {
-            // decodedText is the exact decoded result of the Code 39 barcode
+            
+            // Check if the code is the same as the last successful scan
+            if (decodedText === lastScannedCode) {
+                // console.log(`Ignoring duplicate scan: ${decodedText}`);
+                return; // Exit the function, preventing redundant processing
+            }
+
+            // Clear any pending reset timeout
+            clearTimeout(scanTimeout);
+
+            // Update the last scanned code and proceed with processing
+            lastScannedCode = decodedText;
+            
+            // 1. Display the decoded text
             document.getElementById('result').textContent = decodedText;
             
-            // Reset image display before starting the check
+            // 2. Reset image display before starting the check
             IMAGE_EL.style.display = 'none';
             IMAGE_EL.alt = 'Scanning completed, attempting to load image...';
 
-            // Start the image check and fallback logic
+            // 3. Start the image check and fallback logic
             checkAndDisplayImage(decodedText, decodedText); 
+            
+            // Set a timeout to clear the lastScannedCode after the code is removed from the camera.
+            scanTimeout = setTimeout(() => {
+                 lastScannedCode = null;
+            }, 5000); // 5 seconds debounce window
         }
 
         function onScanFailure(error) {
+            // Error handling is kept quiet for a smoother user experience
             // console.warn(`Code scan error = ${error}`);
         }
 
-        // --- CODE 39 ONLY CONFIGURATION ---
+        // --- CODE 39 ONLY CONFIGURATION (Updated qrbox) ---
         const barcodeOnlyConfig = {
             fps: 10, 
-            qrbox: {width: 250, height: 100}, // Optimized for horizontal barcodes
+            // Reduced size for a smaller, more focused scanning box 
+            qrbox: {width: 200, height: 80}, 
             formatsToSupport: [
-                Html5QrcodeSupportedFormats.CODE_39, // **CRITICAL: Code 39 only**
+                Html5QrcodeSupportedFormats.CODE_39,
             ]
         };
         
@@ -207,3 +227,6 @@
 
 </body>
 </html>
+
+
+This single file now provides a responsive, Code 39-exclusive scanner with logic to prevent continuous duplicate scans while the barcode remains in the camera's view.
