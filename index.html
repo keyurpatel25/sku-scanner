@@ -1,262 +1,138 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FabAlley SKU Scanner (ZXing Code 39/128)</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-
+    <title>Responsive Online Barcode & QR Scanner</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    
     <style>
-        /* Custom Styles */
-        body { background: #f5f8fc; font-family: 'Inter', sans-serif; }
-        #video-container { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
+        /* Base styles for a clean, centered look on all devices */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 10px; 
+            background-color: #f4f4f9;
+            margin: 0;
+        }
         
-        /* Visual scanning box */
-        .scan-box {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 250px; height: 150px;
-            border: 2px solid #22c55e;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(34,197,94,0.6);
-            z-index: 10;
+        /* Heading styles */
+        h1 {
+            color: #2c3e50;
+            font-size: 1.5em; 
+            margin-bottom: 5px;
         }
-        .scan-line {
-            position: absolute;
-            width: 100%; height: 2px;
-            top: 0;
-            background: linear-gradient(to right, transparent, #22c55e, transparent);
-            animation: scan-move 1.5s infinite alternate;
+        h3 {
+            color: #34495e;
+            font-size: 1.2em;
         }
-        @keyframes scan-move { 0% { top: 0; } 100% { top: calc(100% - 2px); } }
+
+        /* 3. RESPONSIVE CONTAINER: Scales on mobile, limits size on desktop */
+        #reader {
+            width: 95%; /* Takes most of the screen width on mobile */
+            max-width: 500px; /* Limits the size on large desktop screens */
+            margin: 20px auto;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Ensures the video element inside the reader container scales correctly */
+        #reader video {
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        #result-container {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            max-width: 500px;
+            margin: 30px auto;
+        }
+        
+        #result {
+            font-weight: bold;
+            color: #2c3e50;
+            word-break: break-all;
+            min-height: 20px;
+        }
+
+        /* Media Query for larger desktop screens */
+        @media (min-width: 768px) {
+            body {
+                padding: 40px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+        }
     </style>
 </head>
+<body>
 
-<body class="flex justify-center items-center min-h-screen p-4">
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6">
-        <h1 class="text-2xl font-bold text-center mb-2">FabAlley SKU Scanner (ZXing)</h1>
-        <p class="text-center text-gray-500 mb-4">Scan or enter SKU to view product image</p>
+    <h1>🚀 Online Barcode & QR Scanner</h1>
+    <p>Scan a code using your device's camera.</p>
 
-        <div id="video-container" class="aspect-video relative mb-4">
-            <video id="cameraPreview" class="w-full h-full object-cover"></video>
-            <div class="scan-box"><div class="scan-line"></div></div>
-        </div>
+    <div id="reader"></div>
 
-        <div class="flex gap-2 mb-3">
-            <input id="skuInput" type="text" placeholder="Enter SKU"
-                class="flex-1 border border-gray-300 p-3 rounded-lg text-center text-lg uppercase font-semibold tracking-wider" />
-            <button id="lookupBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold">
-                Lookup
-            </button>
-        </div>
-
-        <div class="flex justify-center gap-2 mb-3">
-            <button id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md">Start Scan</button>
-            <button id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md hidden">Stop</button>
-        </div>
-
-        <div id="statusMessage" class="text-center text-gray-600 text-sm mb-3">Scanner not active</div>
-
-        <div class="relative w-full aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4">
-            <img id="productImage" src="" alt="Product Image" class="max-h-full object-contain opacity-0 transition-opacity duration-300" />
-            <div id="placeholder" class="text-gray-400 text-center absolute">Enter or scan SKU</div>
-        </div>
+    <div id="result-container">
+        <h3>Decoded Result:</h3>
+        <p id="result">Awaiting scan...</p>
     </div>
 
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
-
     <script>
-        const { BrowserCodeReader, DecodeHintType, BarcodeFormat } = ZXing;
-
-        const skuInput = document.getElementById("skuInput");
-        const productImage = document.getElementById("productImage");
-        const placeholder = document.getElementById("placeholder");
-        const startBtn = document.getElementById("startBtn");
-        const stopBtn = document.getElementById("stopBtn");
-        const statusMsg = document.getElementById("statusMessage");
-        const lookupBtn = document.getElementById("lookupBtn");
-        const videoElement = document.getElementById("cameraPreview");
-
-        const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
-        const IMAGE_SUFFIX = "/1.jpg";
-
-        let codeReader; 
-        let lastScanned = "";
-        let isScanning = false;
-        let isLoading = false;
-        let currentAbortController = null;
-
-        // --- UTILITY FUNCTIONS (Unchanged from previous fast version) ---
-
-        function resetUI() {
-            productImage.classList.add("opacity-0");
-            productImage.removeAttribute("src");
-            placeholder.style.display = "block";
-            placeholder.textContent = "Enter or scan SKU";
-        }
-
-        // 🔹 Start Scanner (using ZXing)
-        async function startScanner() {
-            if (isScanning) return;
-
-            resetUI();
-            statusMsg.textContent = "Starting camera...";
-            startBtn.classList.add("hidden");
-            stopBtn.classList.remove("hidden");
-
-            try {
-                // 🔑 KEY CHANGE: Configure ZXing to look for Code 39 AND Code 128
-                const hints = new Map();
-                hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.CODE_39]);
-                
-                codeReader = new BrowserCodeReader(hints);
-                
-                codeReader.decodeFromVideoDevice(null, videoElement, (result, error) => {
-                    if (result) {
-                        onDetected(result.text.trim().toUpperCase());
-                    }
-                });
-
-                isScanning = true;
-                statusMsg.textContent = "📷 Scanning barcode (Code 39 & 128)...";
-            } catch (err) {
-                console.error(err);
-                alert("Failed to start camera: " + err);
-                statusMsg.textContent = "Camera error.";
-                startBtn.classList.remove("hidden");
-                stopBtn.classList.add("hidden");
-            }
-        }
-
-        // 🔹 Stop Scanner
-        function stopScanner() {
-            if (!isScanning) return;
-            
-            if (codeReader) {
-                codeReader.reset();
-            }
-            
-            isScanning = false;
-            startBtn.classList.remove("hidden");
-            stopBtn.classList.add("hidden");
-            statusMsg.textContent = "Scanner stopped.";
-        }
-
-        // 🔹 Handle Detected Barcode 
-        async function onDetected(code) {
-            if (code === lastScanned || isLoading) return;
-
-            lastScanned = code;
-            statusMsg.textContent = `✅ SKU Detected: ${code}`;
-            skuInput.value = code;
-
-            await fetchImage(code);
-        }
-
-        // 🔹 Fetch image with fast A–Z logic (Remains the same fast network logic)
-        async function fetchImage(sku) {
-            if (currentAbortController) {
-                currentAbortController.abort();
-            }
-            currentAbortController = new AbortController();
-            const { signal } = currentAbortController;
-
-            isLoading = true;
-            skuInput.value = sku;
-            resetUI();
-            placeholder.textContent = "Loading...";
-            statusMsg.textContent = `Loading image for ${sku}...`;
-
-            const urls = [];
-            const exactUrl = `${IMAGE_BASE_URL}${sku}${IMAGE_SUFFIX}`;
-            urls.push(exactUrl);
-
-            // A-Z Fallback Logic
-            const base = sku.slice(0, -1);
-            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            for (const ch of letters) {
-                if (`${base}${ch}` === sku) continue; 
-                urls.push(`${IMAGE_BASE_URL}${base}${ch}${IMAGE_SUFFIX}`);
-            }
-
-            try {
-                for (const url of urls) {
-                    const found = await checkImage(url, signal); 
-                    if (found) {
-                        showImage(url, sku); 
-                        isLoading = false;
-                        return; 
-                    }
-                }
-
-                statusMsg.textContent = "⚠️ No image found.";
-                placeholder.style.display = "block";
-                placeholder.textContent = "Image not found.";
-
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    statusMsg.textContent = "Image search cancelled.";
-                    return; 
-                }
-                console.error("Fetch error:", error);
-                statusMsg.textContent = "Image lookup failed (Network error).";
-            } finally {
-                isLoading = false;
-                currentAbortController = null;
-            }
-        }
-
-        // 🔹 Show image
-        function showImage(url, sku) {
-            placeholder.style.display = "none";
-            
-            productImage.onload = () => {
-                productImage.classList.remove("opacity-0");
-                statusMsg.textContent = `✅ Image loaded for ${sku}`;
-                productImage.onload = null;
-            };
-            productImage.onerror = () => {
-                statusMsg.textContent = `⚠️ Failed to display image for ${sku}`;
-                resetUI();
-                placeholder.textContent = "Image failed to load.";
-                productImage.onerror = null;
-            };
-
-            productImage.src = url;
-        }
-
-        // 🔹 Check if image exists (HEAD request)
-        async function checkImage(url, signal) {
-            try {
-                const res = await fetch(url, { method: "HEAD", signal });
-                return res.ok;
-            } catch (e) {
-                if (e.name === 'AbortError') throw e;
-                return false;
-            }
-        }
-
-        // --- EVENT LISTENERS ---
-
-        lookupBtn.addEventListener("click", async () => {
-            const sku = skuInput.value.trim().toUpperCase();
-            if (sku) await fetchImage(sku);
-        });
-
-        skuInput.addEventListener("keydown", async (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                const sku = skuInput.value.trim().toUpperCase();
-                if (sku) await fetchImage(sku);
-            }
-        });
-
-        startBtn.addEventListener("click", startScanner);
-        stopBtn.addEventListener("click", stopScanner);
+        // --- 4. JavaScript Logic: Handlers and Initialization ---
         
-        resetUI();
+        function onScanSuccess(decodedText, decodedResult) {
+            // Function to run on successful scan
+            document.getElementById('result').textContent = decodedText;
+            
+            // OPTIONAL: Uncomment the line below to stop scanning after the first successful scan
+            /*
+            html5QrcodeScanner.clear().catch(error => { 
+                console.error("Failed to clear scanner:", error); 
+            });
+            */
+        }
+
+        function onScanFailure(error) {
+            // Function to run on scanning failure (e.g., no code in view)
+            // It runs frequently, so we keep this quiet.
+        }
+
+        // Create a new scanner instance targeting the 'reader' element
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", 
+            { 
+                fps: 10, 
+                qrbox: {width: 250, height: 250}, 
+                rememberLastUsedCamera: true
+            },
+            /* verbose= */ false
+        );
+
+        // This attempts to get a list of available cameras first
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                // If cameras are found, proceed to render the scanner.
+                // NOTE: This call automatically prompts for camera permission (requires HTTPS).
+                html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            } else {
+                // Handle case where no cameras are physically available
+                document.getElementById('result').textContent = "No camera found on this device.";
+                console.error("No camera devices found.");
+            }
+        }).catch(err => {
+            // This catches permission errors or issues when run locally (file://)
+            document.getElementById('result').textContent = "ERROR: Could not start camera. Please ensure the site is loaded via a secure (HTTPS) web address, not from a local file.";
+            console.error("Camera access failed:", err);
+        });
+
     </script>
+
 </body>
 </html>
