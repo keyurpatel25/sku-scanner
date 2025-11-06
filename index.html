@@ -3,7 +3,7 @@
 <head>
     <title>Simple Online Barcode Scanner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -32,7 +32,7 @@
             font-weight: bold;
             color: #2c3e50;
             word-break: break-all;
-            min-height: 20px; /* Ensures space for result */
+            min-height: 20px;
         }
         #product-image {
             max-width: 100%;
@@ -49,8 +49,8 @@
 </head>
 <body>
 
-    <h1>🚀 Online Barcode & QR Scanner</h1>
-    <p>Scan a QR code or barcode using your device's camera.</p>
+    <h1>🚀 Online Barcode Scanner (Barcode Only)</h1>
+    <p>Scan a barcode using your device's camera. QR codes are ignored.</p>
 
     <div id="reader"></div>
 
@@ -62,18 +62,18 @@
     </div>
 
     <script>
-        // Base URL structure: 'https://img.faballey.com/images/Product/[SKU]/1.jpg'
+        // --- Image Logic Constants and Elements ---
         const BASE_URL_PREFIX = 'https://img.faballey.com/images/Product/';
         const BASE_URL_SUFFIX = '/1.jpg';
         const IMAGE_EL = document.getElementById('product-image');
 
-        // Function to generate the next SKU for fallback
+        // Function to generate the next SKU for A-Z fallback
         function getNextSku(sku) {
             if (sku.length === 0) return null;
             const lastChar = sku.slice(-1);
             const prefix = sku.slice(0, -1);
             
-            // Check if the last character is a letter A-Y
+            // If the last character is a letter A-Y, increment it
             if (lastChar >= 'A' && lastChar < 'Z') {
                 const nextChar = String.fromCharCode(lastChar.charCodeAt(0) + 1);
                 return prefix + nextChar;
@@ -85,31 +85,33 @@
             return prefix + 'A';
         }
 
-        // Function to check if an image exists at a URL
+        // Function to check if an image exists and recursively try fallbacks
         function checkAndDisplayImage(sku, originalSku) {
             const imageUrl = `${BASE_URL_PREFIX}${sku}${BASE_URL_SUFFIX}`;
             
             IMAGE_EL.src = imageUrl;
+            IMAGE_EL.alt = `Checking SKU: ${sku}`;
+
             IMAGE_EL.onload = () => {
-                // Image loaded successfully!
+                // Success: Display the found image and stop the check sequence
                 console.log(`Image found for SKU: ${sku}`);
                 IMAGE_EL.style.display = 'block';
+                IMAGE_EL.alt = `Product Image for ${sku}`;
             };
+            
             IMAGE_EL.onerror = () => {
-                // Image failed to load, try fallback
+                // Failure: Try the next SKU in the fallback sequence
                 console.warn(`Image failed for SKU: ${sku}`);
                 
                 const nextSku = getNextSku(sku);
                 
-                // Check if we have exhausted all fallbacks
-                // The primary scan (e.g., XMS29747C) should be the first attempt.
-                // If the original SKU was XMS29747C, and we are now on XMS29747Z, stop.
-                if (nextSku && nextSku.slice(-1) <= 'Z' && nextSku !== originalSku) {
+                if (nextSku && nextSku.slice(-1) <= 'Z') {
                     checkAndDisplayImage(nextSku, originalSku); // Recursive call
                 } else {
+                    // Exhausted all fallbacks
                     console.error("No valid image found after all fallbacks.");
                     IMAGE_EL.style.display = 'none';
-                    IMAGE_EL.alt = "Image not found.";
+                    IMAGE_EL.alt = "Image not found for any variant.";
                 }
             };
         }
@@ -120,24 +122,39 @@
             // 1. Display the decoded text
             document.getElementById('result').textContent = decodedText;
             
-            // 2. Reset image
+            // 2. Reset image display before starting the check
             IMAGE_EL.style.display = 'none';
-            IMAGE_EL.alt = 'Scanning completed.';
+            IMAGE_EL.alt = 'Scanning completed, attempting to load image...';
 
             // 3. Start the image check and fallback logic
-            // Initial call uses the scanned SKU (decodedText)
             checkAndDisplayImage(decodedText, decodedText); 
         }
 
         function onScanFailure(error) {
-            // Handle scan failure, but do not clutter the UI with minor errors
             // console.warn(`Code scan error = ${error}`);
         }
 
+        // --- BARCODE-ONLY CONFIGURATION ---
+        // List of common 1D barcode formats to support, excluding QR_CODE
+        const barcodeOnlyConfig = {
+            fps: 10, 
+            qrbox: {width: 250, height: 100}, // Adjusted box for horizontal barcodes
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.ITF,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODABAR,
+            ]
+        };
+        
         // Create a new scanner instance
         var html5QrcodeScanner = new Html5QrcodeScanner(
             "reader", // The ID of the HTML element where the scanner should appear
-            { fps: 10, qrbox: {width: 250, height: 250} }, // Configuration
+            barcodeOnlyConfig, // Use the new configuration object
             /* verbose= */ false
         );
 
