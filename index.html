@@ -1,138 +1,404 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Responsive Online Barcode & QR Scanner</title>
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FabAlley SKU Scanner (Updated Barcode Config)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    
+
     <style>
-        /* Base styles for a clean, centered look on all devices */
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 10px; 
-            background-color: #f4f4f9;
-            margin: 0;
-        }
-        
-        /* Heading styles */
-        h1 {
-            color: #2c3e50;
-            font-size: 1.5em; 
-            margin-bottom: 5px;
-        }
-        h3 {
-            color: #34495e;
-            font-size: 1.2em;
+        /* CSS styles unchanged */
+        body { 
+            background: #f5f8fc; 
+            font-family: 'Inter', sans-serif; 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 1rem;
         }
 
-        /* 3. RESPONSIVE CONTAINER: Scales on mobile, limits size on desktop */
+        #video-container { 
+            position: relative; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            background: #000; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
+            width: 100%;
+            aspect-ratio: 16/9; 
+        }
+        
         #reader {
-            width: 95%; /* Takes most of the screen width on mobile */
-            max-width: 500px; /* Limits the size on large desktop screens */
-            margin: 20px auto;
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        /* Ensures the video element inside the reader container scales correctly */
-        #reader video {
-            width: 100% !important;
-            height: auto !important;
+            width: 100%;
+            height: 100%; 
+            position: absolute; 
+            top: 0;
+            left: 0;
+            z-index: 10;
         }
 
-        #result-container {
-            margin-top: 30px;
-            padding: 15px;
-            background-color: #ecf0f1;
-            border-radius: 5px;
-            max-width: 500px;
-            margin: 30px auto;
-        }
+        #reader div { display: none !important; }
         
-        #result {
-            font-weight: bold;
-            color: #2c3e50;
-            word-break: break-all;
-            min-height: 20px;
+        #scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20; 
+            pointer-events: none; 
         }
 
-        /* Media Query for larger desktop screens */
-        @media (min-width: 768px) {
-            body {
-                padding: 40px;
-            }
-            h1 {
-                font-size: 2em;
-            }
+        .scan-box {
+            width: 90%; 
+            height: 120px; 
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); 
+            border-radius: 5px; 
+        }
+
+        .scan-strip {
+            position: absolute; 
+            left: 0;
+            width: 100%;
+            height: 4px; 
+            background: linear-gradient(to right, transparent 10%, #ff0000 50%, transparent 90%);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+            animation: scan 1s infinite linear alternate; 
+        }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0.8; }
+            100% { top: calc(100% - 4px); opacity: 0.8; } 
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .flash-active {
+            background-color: #facc15 !important; 
+            color: #1f2937 !important; 
+        }
+        .flash-inactive {
+            background-color: #6b7280 !important; 
         }
     </style>
 </head>
-<body>
 
-    <h1>🚀 Online Barcode & QR Scanner</h1>
-    <p>Scan a code using your device's camera.</p>
+<body class="p-4">
+    <div class="max-w-md bg-white rounded-2xl shadow-lg p-6">
+        <h1 class="text-2xl font-bold text-center mb-2">FabAlley SKU Scanner</h1>
+        <p class="text-center text-gray-500 mb-4">Scan or enter SKU to view product image</p>
 
-    <div id="reader"></div>
+        <div id="video-container" class="relative mb-4">
+            <div id="reader" class="h-full"></div>
+            <div id="scanner-overlay" class="hidden">
+                <div class="scan-box">
+                    <div class="scan-line">
+                        <div class="scan-strip"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-    <div id="result-container">
-        <h3>Decoded Result:</h3>
-        <p id="result">Awaiting scan...</p>
+        <div class="flex gap-2 mb-3">
+            <input id="skuInput" type="text" placeholder="ENTER SKU"
+                class="flex-1 border border-gray-300 p-3 rounded-lg text-center text-lg uppercase font-semibold tracking-wider" />
+            <button id="lookupBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold">
+                Lookup
+            </button>
+        </div>
+
+        <div class="flex justify-center gap-2 mb-3">
+            <button id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md">Start Scan</button>
+            <button id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md hidden" disabled>Stop</button>
+            <button id="flashBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hidden" disabled>💡 Flash OFF</button>
+        </div>
+
+        <div id="statusMessage" class="text-center text-gray-600 text-sm mb-3">Scanner not active</div>
+
+        <div class="relative max-w-full aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-4">
+            <img id="productImage" src="" alt="Product Image" class="max-h-full object-contain opacity-0 transition-opacity duration-300" />
+            <div id="placeholder" class="text-gray-400 text-center absolute">Enter or scan SKU</div>
+        </div>
     </div>
 
     <script>
-        // --- 4. JavaScript Logic: Handlers and Initialization ---
+        const skuInput = document.getElementById("skuInput");
+        const productImage = document.getElementById("productImage");
+        const placeholder = document.getElementById("placeholder");
+        const startBtn = document.getElementById("startBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const flashBtn = document.getElementById("flashBtn");
+        const statusMsg = document.getElementById("statusMessage");
+        const lookupBtn = document.getElementById("lookupBtn");
+        const scannerOverlay = document.getElementById("scanner-overlay");
         
-        function onScanSuccess(decodedText, decodedResult) {
-            // Function to run on successful scan
-            document.getElementById('result').textContent = decodedText;
+        const html5QrCode = new Html5Qrcode("reader");
+
+        const IMAGE_BASE_URL = "https://img.faballey.com/images/Product/";
+        const IMAGE_SUFFIX = "/1.jpg";
+        const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        let lastScanned = "";
+        let isScanning = false;
+        let isLoading = false;
+        let currentImageCheck = null; 
+        let flashOn = false;        
+
+        // --- Flashlight Control Logic (Unchanged) ---
+
+        async function toggleFlash() {
+            if (!isScanning) return;
             
-            // OPTIONAL: Uncomment the line below to stop scanning after the first successful scan
-            /*
-            html5QrcodeScanner.clear().catch(error => { 
-                console.error("Failed to clear scanner:", error); 
-            });
-            */
-        }
+            flashBtn.disabled = true;
 
-        function onScanFailure(error) {
-            // Function to run on scanning failure (e.g., no code in view)
-            // It runs frequently, so we keep this quiet.
-        }
+            try {
+                await html5QrCode.setFlash(!flashOn);
+                flashOn = !flashOn;
+                
+                flashBtn.classList.toggle("flash-active", flashOn);
+                flashBtn.classList.toggle("flash-inactive", !flashOn);
+                flashBtn.textContent = flashOn ? "💡 Flash ON" : "💡 Flash OFF";
 
-        // Create a new scanner instance targeting the 'reader' element
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", 
-            { 
-                fps: 10, 
-                qrbox: {width: 250, height: 250}, 
-                rememberLastUsedCamera: true
-            },
-            /* verbose= */ false
-        );
+                statusMsg.textContent = flashOn ? "💡 Flashlight ON" : "💡 Flashlight OFF";
+                flashBtn.disabled = false;
 
-        // This attempts to get a list of available cameras first
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length) {
-                // If cameras are found, proceed to render the scanner.
-                // NOTE: This call automatically prompts for camera permission (requires HTTPS).
-                html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-            } else {
-                // Handle case where no cameras are physically available
-                document.getElementById('result').textContent = "No camera found on this device.";
-                console.error("No camera devices found.");
+            } catch (err) {
+                // Flash failed (unsupported or denied). Hide the button permanently for the session.
+                console.error("Flash operation failed. Hiding button.", err);
+                statusMsg.textContent = "Flash unsupported/denied. Hiding button.";
+                flashBtn.classList.add("hidden");
+                flashBtn.disabled = true;
+                flashOn = false;
             }
-        }).catch(err => {
-            // This catches permission errors or issues when run locally (file://)
-            document.getElementById('result').textContent = "ERROR: Could not start camera. Please ensure the site is loaded via a secure (HTTPS) web address, not from a local file.";
-            console.error("Camera access failed:", err);
+        }
+        
+        function resetFlashUI() {
+            // Only reset state, do not permanently hide the button here
+            flashBtn.classList.remove("flash-active", "flash-inactive");
+            flashBtn.disabled = true;
+            flashOn = false;
+        }
+
+        // --- Core UI & Scanner Logic ---
+
+        function resetUI() {
+            productImage.classList.add("opacity-0");
+            productImage.removeAttribute("src");
+            placeholder.style.display = "block";
+            placeholder.textContent = "Enter or scan SKU";
+        }
+
+        // --- REPLACED: Updated onScanSuccess logic from the second script's concept ---
+        async function onScanSuccess(decodedText, decodedResult) {
+            const code = decodedText.trim().toUpperCase();
+            
+            // Allow re-scan if code is the same but 1 second has passed (or similar debounce)
+            if (code === lastScanned && !isLoading) {
+                return;
+            }
+            if (isLoading) return;
+
+            lastScanned = code;
+            statusMsg.textContent = `✅ SKU Detected: ${code}`;
+            skuInput.value = code;
+            await fetchImage(code);
+            
+            // Add optional vibration feedback here if desired
+            if (navigator.vibrate) navigator.vibrate(200); 
+        }
+        // --- END REPLACED ---
+
+        // --- UPDATED: Start Scanner function for more specific barcode constraints ---
+        async function startScanner() {
+            if (isScanning) return;
+            resetUI();
+            resetFlashUI();
+            flashBtn.classList.add("hidden"); // Start hidden
+            statusMsg.textContent = "Starting camera...";
+            startBtn.classList.add("hidden");
+            stopBtn.classList.remove("hidden");
+            stopBtn.disabled = true;
+            scannerOverlay.classList.remove("hidden");
+
+            // --- New/Updated Configuration ---
+            const scannerConfig = {
+                fps: 60, // High FPS for better responsiveness
+                qrbox: { width: 300, height: 120 }, // Optimized for horizontal barcodes
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.EAN_13, 
+                    Html5QrcodeSupportedFormats.EAN_8,   
+                    Html5QrcodeSupportedFormats.QR_CODE, // Added QR code support just in case
+                ],
+                // Preferred constraint to use the back camera
+                facingMode: "environment",
+                // Additional camera properties for resolution/focus (optional, may not be universally supported)
+                /* videoConstraints: {
+                    facingMode: "environment",
+                    aspectRatio: 1.7777777778, // 16:9 aspect ratio
+                }
+                */
+            };
+            // --- End Configuration ---
+            
+            let success = false;
+            try {
+                // Attempt to start with 'environment' facing mode first
+                await html5QrCode.start({ facingMode: "environment" }, scannerConfig, onScanSuccess, () => {});
+                success = true;
+            } catch (err) {
+                console.error("Failed to start scanner:", err);
+                const guidance = "1. **Check your URL:** Must be on **HTTPS** (or `localhost`). 2. **Check Permissions:** Granted camera access? 3. **Device Support:** Device may not support camera access.";
+                alert(`CAMERA STARTUP FAILED!\n\n${guidance}\n\nError: ${err.message}`);
+                    
+                statusMsg.textContent = "🔴 CAMERA ERROR: Check HTTPS/Permissions.";
+                startBtn.classList.remove("hidden");
+                stopBtn.classList.add("hidden");
+                scannerOverlay.classList.add("hidden"); 
+            }
+
+            if (success) {
+                isScanning = true;
+                stopBtn.disabled = false;
+                statusMsg.textContent = "🚀 Scanning at full speed...";
+
+                // Check for flash support and display button
+                try {
+                    const hasFlash = await html5QrCode.hasFlash();
+                    if (hasFlash) {
+                        flashBtn.classList.remove("hidden");
+                        flashBtn.disabled = false; 
+                        flashBtn.textContent = "💡 Flash OFF";
+                        flashBtn.classList.add("flash-inactive");
+                    } else {
+                        console.log("Flash feature not reported as supported. Button remains hidden.");
+                    }
+                } catch (e) {
+                    console.warn("Failed to query flash support. Button remains hidden.", e);
+                }
+            }
+        }
+
+        async function stopScanner() {
+            if (!isScanning) return;
+            
+            if(flashOn) {
+                try {
+                    await html5QrCode.setFlash(false);
+                } catch(e) { /* ignore flash stop errors */ }
+            }
+
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                startBtn.classList.remove("hidden");
+                stopBtn.classList.add("hidden");
+                stopBtn.disabled = true;
+                scannerOverlay.classList.add("hidden"); 
+                statusMsg.textContent = "Scanner stopped.";
+                lastScanned = ""; 
+                resetFlashUI();
+                flashBtn.classList.add("hidden"); // Ensure button is hidden when scanner is off
+            }).catch(err => {
+                console.error("Failed to stop scanner: ", err);
+                statusMsg.textContent = "Error stopping scanner.";
+            });
+        }
+
+        // --- Image Object Logic (unchanged) ---
+
+        function fetchImage(fullSku) {
+            if (currentImageCheck) {
+                clearTimeout(currentImageCheck);
+            }
+            isLoading = true;
+            skuInput.value = fullSku;
+            resetUI();
+            placeholder.textContent = "Loading...";
+            statusMsg.textContent = `Loading image for ${fullSku}...`;
+            
+            const baseSku = fullSku.slice(0, -1);
+            let index = 0;
+
+            function attemptImageLoad() {
+                if (skuInput.value.trim().toUpperCase() !== fullSku) {
+                    isLoading = false;
+                    return;
+                }
+                
+                if (index >= LETTERS.length) {
+                    isLoading = false;
+                    statusMsg.textContent = "⚠️ No image found.";
+                    placeholder.style.display = "block";
+                    placeholder.textContent = "Image not found for SKU: " + fullSku;
+                    return;
+                }
+
+                const folder = baseSku + LETTERS.charAt(index);
+                const url = `${IMAGE_BASE_URL}${folder}${IMAGE_SUFFIX}`;
+                
+                const img = new window.Image();
+
+                img.onload = function () {
+                    isLoading = false;
+                    const foundSku = folder;
+                    placeholder.style.display = "none";
+
+                    productImage.onload = () => {
+                        productImage.classList.remove("opacity-0");
+                        statusMsg.textContent = `✅ Image loaded for ${fullSku} (Folder: ${foundSku})`;
+                        productImage.onload = null;
+                    };
+                    productImage.onerror = () => {
+                        statusMsg.textContent = `⚠️ Failed to display image for ${fullSku}`;
+                        resetUI();
+                        placeholder.textContent = "Image failed to load.";
+                        productImage.onerror = null;
+                    };
+                    productImage.src = url; 
+                    clearTimeout(currentImageCheck);
+                };
+
+                img.onerror = function () {
+                    index += 1;
+                    currentImageCheck = setTimeout(attemptImageLoad, 0); 
+                };
+
+                img.src = url;
+            }
+
+            attemptImageLoad();
+        }
+
+        // --- Event Listeners (unchanged) ---
+
+        lookupBtn.addEventListener("click", () => {
+            const sku = skuInput.value.trim().toUpperCase();
+            if (sku) fetchImage(sku);
         });
 
-    </script>
+        skuInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const sku = skuInput.value.trim().toUpperCase();
+                if (sku) fetchImage(sku);
+            }
+        });
 
+        startBtn.addEventListener("click", startScanner);
+        stopBtn.addEventListener("click", stopScanner);
+        flashBtn.addEventListener("click", toggleFlash); 
+
+        resetUI();
+    </script>
 </body>
 </html>
